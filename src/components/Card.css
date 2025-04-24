@@ -1,0 +1,78 @@
+.card {
+  width: 120px;
+  height: 180px;
+  border-radius: 10px;
+  background-color: #fff;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  margin: 10px;
+  cursor: default;
+  transition: transform 0.2s, box-shadow 0.2s;
+  position: relative;
+  overflow: hidden;
+  user-select: none;
+}
+
+.card.playable {
+  cursor: pointer;
+}
+
+.card.playable:hover {
+  transform: translateY(-10px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
+}
+
+.card-value {
+  font-size: 4rem;
+  font-weight: bold;
+  color: #333;
+}
+
+.card-effect {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+
+.effect-icon {
+  font-size: 3rem;
+  margin-bottom: 10px;
+}
+
+.effect-name {
+  font-size: 1.2rem;
+  font-weight: bold;
+  text-transform: uppercase;
+}
+
+/* Card type specific styling */
+.card.number {
+  background-color: #f8f9fa;
+  border: 2px solid #343a40;
+}
+
+.card.bolt {
+  background-color: #fff3cd;
+  border: 2px solid #ffc107;
+}
+
+.card.mirror {
+  background-color: #d1ecf1;
+  border: 2px solid #17a2b8;
+}
+
+.card.blast {
+  background-color: #f8d7da;
+  border: 2px solid #dc3545;
+}
+
+.card.force {
+  background-color: #d4edda;
+  border: 2px solid #28a745;
+}

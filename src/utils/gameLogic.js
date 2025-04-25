@@ -111,16 +111,12 @@ export const initializeGame = () => {
 
   // Determine who goes first (lower number)
   let currentPlayerIndex;
-  if (player1FirstCard.type === CARD_TYPES.NUMBER && player2FirstCard.type === CARD_TYPES.NUMBER) {
-    currentPlayerIndex = player1FirstCard.value <= player2FirstCard.value ? 0 : 1;
-  } else if (player1FirstCard.type === CARD_TYPES.NUMBER) {
-    currentPlayerIndex = 0;
-  } else if (player2FirstCard.type === CARD_TYPES.NUMBER) {
-    currentPlayerIndex = 1;
-  } else {
-    // Both played effect cards, treat as value 1
-    currentPlayerIndex = 0; // Player 1 goes first in a tie
-  }
+  // Get the effective values for comparison (effect cards count as 1)
+  const player1Value = player1FirstCard.value;
+  const player2Value = player2FirstCard.value;
+
+  // Lower value goes first, player 1 goes first in a tie
+  currentPlayerIndex = player1Value <= player2Value ? 0 : 1;
 
   return {
     players: [
@@ -445,10 +441,11 @@ export const playCard = (gameState, cardIndex) => {
     if (cardToPlay.type === CARD_TYPES.BLAST) {
       // Don't switch turns, just increment turn counter
       newState.turn += 1;
+    } else {
+      // Current player couldn't surpass opponent's value
+      message += ' Player couldn\'t surpass opponent\'s value. Game over!';
+      gameOver = true;
     }
-    // Current player couldn't surpass opponent's value
-    message += ' Player couldn\'t surpass opponent\'s value. Game over!';
-    gameOver = true;
   } else if (noMoreCards) {
     // Player has no more cards but won
     message += ' Player has no more cards but won the game!';

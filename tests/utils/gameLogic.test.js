@@ -263,6 +263,37 @@ describe('playCard', () => {
     };
   };
 
+  // Helper function to create a game state for testing last card scenarios
+  const createLastCardTestState = () => {
+    return {
+      players: [
+        {
+          hand: [
+            { type: 'number', value: 3 } // Player's last card
+          ],
+          field: [
+            { type: 'number', value: 5 }
+          ],
+          totalValue: 5,
+          deck: []
+        },
+        {
+          hand: [
+            { type: 'bolt', value: 1 } // Opponent has only one effect card
+          ],
+          field: [
+            { type: 'number', value: 3 }
+          ],
+          totalValue: 3,
+          deck: []
+        }
+      ],
+      currentPlayerIndex: 0,
+      turn: 1,
+      lastRemovedCard: null
+    };
+  };
+
   // Helper function to create a game state for testing draw handling
   const createDrawTestState = () => {
     return {
@@ -403,6 +434,148 @@ describe('playCard', () => {
 
       // Check that the game is not over
       expect(result.gameOver).toBe(false);
+    });
+  });
+
+  describe('Last card scenarios', () => {
+    it('should make the player win if they play their last card and opponent has only one effect card left', () => {
+      // Set up game state where player has one card left and opponent has only one effect card
+      const gameState = createLastCardTestState();
+
+      // Play the player's last card
+      const result = playCard(gameState, 0);
+
+      // Check that the game is over
+      expect(result.gameOver).toBe(true);
+
+      // Check that the message indicates the player wins because opponent has only one effect card left
+      expect(result.message).toContain('Player has no more cards. Opponent has only one effect card left. Player wins!');
+
+      // Check that the current player index hasn't changed (player won)
+      expect(result.newState.currentPlayerIndex).toBe(0);
+    });
+
+    it('should make the player lose if their remaining cards cannot surpass opponent\'s total value', () => {
+      // Set up game state where player's remaining cards cannot surpass opponent's total value
+      const gameState = {
+        players: [
+          {
+            hand: [
+              { type: 'number', value: 1 }, // Playing this card
+              { type: 'number', value: 2 }  // Remaining card
+            ],
+            field: [
+              { type: 'number', value: 3 }
+            ],
+            totalValue: 3,
+            deck: []
+          },
+          {
+            hand: [
+              { type: 'number', value: 4 }
+            ],
+            field: [
+              { type: 'number', value: 7 }
+            ],
+            totalValue: 7, // Opponent's total value is 7
+            deck: []
+          }
+        ],
+        currentPlayerIndex: 0,
+        turn: 1,
+        lastRemovedCard: null
+      };
+
+      // Play a card
+      const result = playCard(gameState, 0);
+
+      // Check that the game is over
+      expect(result.gameOver).toBe(true);
+
+      // Check that the message indicates the player loses because their remaining cards cannot surpass opponent's total value
+      expect(result.message).toContain('Player\'s remaining cards cannot surpass opponent\'s total value. Player loses the match!');
+    });
+
+    it('should not make the player lose if their remaining cards can potentially surpass opponent\'s total value', () => {
+      // Set up game state where player's remaining cards can potentially surpass opponent's total value
+      const gameState = {
+        players: [
+          {
+            hand: [
+              { type: 'number', value: 1 }, // Playing this card
+              { type: 'number', value: 5 }  // Remaining card that can potentially surpass opponent's total
+            ],
+            field: [
+              { type: 'number', value: 3 }
+            ],
+            totalValue: 3,
+            deck: []
+          },
+          {
+            hand: [
+              { type: 'number', value: 4 }
+            ],
+            field: [
+              { type: 'number', value: 7 }
+            ],
+            totalValue: 7, // Opponent's total value is 7
+            deck: []
+          }
+        ],
+        currentPlayerIndex: 0,
+        turn: 1,
+        lastRemovedCard: null
+      };
+
+      // Play a card
+      const result = playCard(gameState, 0);
+
+      // Check that the game is not over
+      expect(result.gameOver).toBe(false);
+
+      // Check that the turn is switched to the opponent
+      expect(result.newState.currentPlayerIndex).toBe(1);
+    });
+
+    it('should make the player lose if they only have effect cards left', () => {
+      // Set up game state where player only has effect cards
+      const gameState = {
+        players: [
+          {
+            hand: [
+              { type: 'bolt', value: 1 },
+              { type: 'mirror', value: 1 }
+            ],
+            field: [
+              { type: 'number', value: 5 }
+            ],
+            totalValue: 5,
+            deck: []
+          },
+          {
+            hand: [
+              { type: 'number', value: 4 }
+            ],
+            field: [
+              { type: 'number', value: 3 }
+            ],
+            totalValue: 3,
+            deck: []
+          }
+        ],
+        currentPlayerIndex: 0,
+        turn: 1,
+        lastRemovedCard: null
+      };
+
+      // Try to play a card (any index, it doesn't matter since the check happens before card selection)
+      const result = playCard(gameState, 0);
+
+      // Check that the game is over
+      expect(result.gameOver).toBe(true);
+
+      // Check that the message indicates the player loses because they only have effect cards left
+      expect(result.message).toBe('Player only has effect cards left. Player loses the match!');
     });
   });
 

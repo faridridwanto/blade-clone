@@ -245,6 +245,20 @@ export const playCard = (gameState, cardIndex) => {
   const opponentIndex = currentPlayerIndex === 0 ? 1 : 0;
   const opponent = players[opponentIndex];
 
+  // Check if the current player only has effect cards left
+  const hasOnlyEffectCards = currentPlayer.hand.length > 0 && currentPlayer.hand.every(card => card.type !== CARD_TYPES.NUMBER);
+  if (hasOnlyEffectCards) {
+    // Create a deep copy of the game state to modify
+    const newState = JSON.parse(JSON.stringify(gameState));
+
+    // Player automatically loses if they only have effect cards left
+    return {
+      newState,
+      message: 'Player only has effect cards left. Player loses the match!',
+      gameOver: true
+    };
+  }
+
   // Check if the card index is valid
   if (cardIndex < 0 || cardIndex >= currentPlayer.hand.length) {
     throw new Error('Invalid card index');
@@ -377,14 +391,15 @@ export const playCard = (gameState, cardIndex) => {
 
   // Check if the player has no more cards
   let noMoreCards = newCurrentPlayer.hand.length === 0;
-  if (newCurrentPlayer.hand.length === 1 && (cardToPlay.type !== CARD_TYPES.BOLT ||
-  cardToPlay.type !== CARD_TYPES.MIRROR || cardToPlay.type !== CARD_TYPES.BLAST ||
-  cardToPlay.type !== CARD_TYPES.FORCE)) {
+  // If player has only one card left and it's a number card, consider them as having no more cards
+  // since they just played their last card
+  if (newCurrentPlayer.hand.length === 1 && cardToPlay.type === CARD_TYPES.NUMBER) {
     noMoreCards = true;
   }
 
   // Determine game over conditions
   let gameOver = false;
+
 
   if (isDraw) {
     // Clear the field and take one card from each deck to be the initial field
@@ -437,19 +452,72 @@ export const playCard = (gameState, cardIndex) => {
     };
   }
 
+
   if (!playerWon) {
     if (cardToPlay.type === CARD_TYPES.BLAST) {
       // Don't switch turns, just increment turn counter
       newState.turn += 1;
     } else {
-      // Current player couldn't surpass opponent's value
-      message += ' Player couldn\'t surpass opponent\'s value. Game over!';
-      gameOver = true;
+      // Check if any single card in the player's hand can potentially surpass the opponent's total value
+      let canPotentiallySurpass = false;
+
+      // Check each card individually to see if it can outnumber the opponent's total value if played
+      for (const card of newCurrentPlayer.hand) {
+        if (card.type === CARD_TYPES.NUMBER && (newCurrentPlayer.totalValue + card.value >= newOpponent.totalValue)) {
+          canPotentiallySurpass = true;
+          break;
+        }
+      }
+
+      if (!canPotentiallySurpass && newCurrentPlayer.hand.length > 0) {
+        // Player's remaining cards cannot surpass opponent's total value
+        message += ' Player\'s remaining cards cannot surpass opponent\'s total value. Player loses the match!';
+        gameOver = true;
+      } else if (newCurrentPlayer.hand.length === 0) {
+        // Current player couldn't surpass opponent's value and has no more cards
+        message += ' Player couldn\'t surpass opponent\'s value. Game over!';
+        gameOver = true;
+      } else {
+        // Current player couldn't surpass opponent's value but still has cards that can potentially surpass
+        // Switch to the other player's turn
+        newState.currentPlayerIndex = opponentIndex;
+        newState.turn += 1;
+      }
     }
   } else if (noMoreCards) {
-    // Player has no more cards but won
-    message += ' Player has no more cards but won the game!';
-    gameOver = true;
+    // Player has no more cards
+    if (newOpponent.hand.length > 0) {
+      // If opponent has only 1 card left and it's an effect card, they should lose
+      if (newOpponent.hand.length === 1 && newOpponent.hand[0].type !== CARD_TYPES.NUMBER) {
+        message += ' Player has no more cards. Opponent has only one effect card left. Player wins!';
+        gameOver = true;
+      } else {
+        // Check if opponent has any cards that can potentially outnumber the current field
+        let opponentCanWin = false;
+
+        // Check for number cards that would make opponent's total value higher
+        for (const card of newOpponent.hand) {
+          if (card.type === CARD_TYPES.NUMBER && (newOpponent.totalValue + card.value > newCurrentPlayer.totalValue)) {
+            opponentCanWin = true;
+            break;
+          }
+        }
+
+        if (opponentCanWin) {
+          // Give the turn to the opponent if they can potentially win
+          newState.currentPlayerIndex = opponentIndex;
+          newState.turn += 1;
+        } else {
+          // Opponent can't win, so current player wins
+          message += ' Player has no more cards. Opponent cannot outnumber the field. Player wins!';
+          gameOver = true;
+        }
+      }
+    } else {
+      // If opponent also has no cards, current player wins
+      message += ' Player has no more cards but won the game!';
+      gameOver = true;
+    }
   } else {
     // For Blast card, player gets to play another card
     if (cardToPlay.type === CARD_TYPES.BLAST) {

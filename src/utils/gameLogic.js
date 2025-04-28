@@ -63,7 +63,14 @@ const drawCards = (deck, count) => {
 };
 
 const calculateTotalValue = (field) => {
-  return field.reduce((total, card) => total + card.value, 0);
+  return field.reduce((total, card, index) => {
+    // If Force card is the first card in the field, add its value (1)
+    // Otherwise, don't add Force card's value to the total
+    if (card.type === CARD_TYPES.FORCE) {
+      return index === 0 ? total + 1 : total;
+    }
+    return total + card.value;
+  }, 0);
 };
 
 // Game logic functions
@@ -224,7 +231,7 @@ export const applyEffectCard = (gameState, cardType, playerIndex) => {
       // Double the latest total value
       currentPlayer.totalValue *= 2;
 
-      // Add the force card to the field
+      // Add the force card to the field without adding its value to the total
       currentPlayer.field.push(effectCard);
       message = 'Force card doubled your total value!';
       break;
@@ -239,8 +246,9 @@ export const applyEffectCard = (gameState, cardType, playerIndex) => {
   };
 };
 
-export const playCard = (gameState, cardIndex) => {
-  const { players, currentPlayerIndex, turn, lastRemovedCard } = gameState;
+// Function to check if a player has any card that can potentially surpass the opponent's total value
+export const checkPlayerViability = (gameState) => {
+  const { players, currentPlayerIndex } = gameState;
   const currentPlayer = players[currentPlayerIndex];
   const opponentIndex = currentPlayerIndex === 0 ? 1 : 0;
   const opponent = players[opponentIndex];
@@ -255,8 +263,68 @@ export const playCard = (gameState, cardIndex) => {
     return {
       newState,
       message: 'Player only has effect cards left. Player loses the match!',
-      gameOver: true
+      gameOver: true,
+      viable: false
     };
+  }
+
+  // Check if any single card in the player's hand can potentially surpass the opponent's total value
+  let canPotentiallySurpass = false;
+
+  // Check each card individually to see if it can outnumber the opponent's total value if played
+  for (const card of currentPlayer.hand) {
+    if (card.type === CARD_TYPES.NUMBER && (currentPlayer.totalValue + card.value > opponent.totalValue)) {
+      canPotentiallySurpass = true;
+      break;
+    }
+    // Also check if effect cards can potentially help (like Force doubling the value)
+    if (card.type === CARD_TYPES.FORCE && (currentPlayer.totalValue * 2 > opponent.totalValue)) {
+      canPotentiallySurpass = true;
+      break;
+    }
+    // Mirror card can swap fields if opponent's total value is higher
+    if (card.type === CARD_TYPES.MIRROR && opponent.totalValue > currentPlayer.totalValue) {
+      canPotentiallySurpass = true;
+      break;
+    }
+    // Bolt card can remove opponent's last card, potentially reducing their total value
+    if (card.type === CARD_TYPES.BOLT && opponent.field.length > 0) {
+      // Calculate opponent's total value without their last card
+      const lastCard = opponent.field[opponent.field.length - 1];
+      const newOpponentValue = opponent.totalValue - (lastCard.type === CARD_TYPES.FORCE ? 0 : lastCard.value);
+      if (currentPlayer.totalValue > newOpponentValue) {
+        canPotentiallySurpass = true;
+        break;
+      }
+    }
+  }
+
+  if (!canPotentiallySurpass && currentPlayer.hand.length > 0) {
+    // Create a deep copy of the game state to modify
+    const newState = JSON.parse(JSON.stringify(gameState));
+
+    // Player's remaining cards cannot surpass opponent's total value
+    return {
+      newState,
+      message: 'Player\'s remaining cards cannot surpass opponent\'s total value. Player loses the match!',
+      gameOver: true,
+      viable: false
+    };
+  }
+
+  return { viable: true };
+};
+
+export const playCard = (gameState, cardIndex) => {
+  const { players, currentPlayerIndex, turn, lastRemovedCard } = gameState;
+  const currentPlayer = players[currentPlayerIndex];
+  const opponentIndex = currentPlayerIndex === 0 ? 1 : 0;
+  const opponent = players[opponentIndex];
+
+  // First check if the player has any viable cards
+  const viabilityCheck = checkPlayerViability(gameState);
+  if (!viabilityCheck.viable) {
+    return viabilityCheck;
   }
 
   // Check if the card index is valid
@@ -308,33 +376,39 @@ export const playCard = (gameState, cardIndex) => {
       break;
 
     case CARD_TYPES.BOLT:
-      // Remove the last card placed by an opponent
-      if (newOpponent.field.length > 0) {
-        const removedCard = newOpponent.field.pop();
-        newOpponent.totalValue -= removedCard.value;
-
-        // Special rule: If Force is the top card in the field and gets hit by Bolt
-        if (removedCard.type === CARD_TYPES.FORCE) {
-          // Reduce the opponent's total value by half
-          newOpponent.totalValue = Math.floor(newOpponent.totalValue / 2);
-          message = 'Bolt card removed Force card from opponent\'s field! Opponent\'s total value is reduced by half!';
-        } else {
-          message = 'Bolt card removed the last card from opponent\'s field!';
-        }
-
-        newState.lastRemovedCard = { 
-          card: removedCard, 
-          removedBy: CARD_TYPES.BOLT 
-        };
-      } else {
-        message = 'Bolt card had no effect (opponent has no cards)';
+      // Prevent using Bolt card if opponent's field is empty
+      if (newOpponent.field.length === 0) {
+        throw new Error('Cannot use Bolt card when opponent\'s field is empty');
       }
+
+      // Remove the last card placed by an opponent
+      const removedCard = newOpponent.field.pop();
+      newOpponent.totalValue -= removedCard.value;
+
+      // Special rule: If Force is the top card in the field and gets hit by Bolt
+      if (removedCard.type === CARD_TYPES.FORCE) {
+        // Reduce the opponent's total value by half
+        newOpponent.totalValue = Math.floor(newOpponent.totalValue / 2);
+        message = 'Bolt card removed Force card from opponent\'s field! Opponent\'s total value is reduced by half!';
+      } else {
+        message = 'Bolt card removed the last card from opponent\'s field!';
+      }
+
+      newState.lastRemovedCard = { 
+        card: removedCard, 
+        removedBy: CARD_TYPES.BOLT 
+      };
       // Bolt card is not placed on the field
       break;
 
     case CARD_TYPES.MIRROR:
+      // Prevent using Mirror card if opponent's field is empty
+      if (newOpponent.field.length === 0) {
+        throw new Error('Cannot use Mirror card when opponent\'s field is empty');
+      }
+
       // Switch the entire field between players
-      if (newCurrentPlayer.field.length > 0 && newOpponent.field.length > 0) {
+      if (newCurrentPlayer.field.length > 0) {
         // Save the fields
         const playerField = [...newCurrentPlayer.field];
         const opponentField = [...newOpponent.field];
@@ -371,10 +445,15 @@ export const playCard = (gameState, cardIndex) => {
       break;
 
     case CARD_TYPES.FORCE:
+      // Prevent using Force card as the first card on the field
+      if (newCurrentPlayer.field.length === 0) {
+        throw new Error('Cannot use Force card as the first card on the field');
+      }
+
       // Double the latest total value
       newCurrentPlayer.totalValue *= 2;
 
-      // Add the force card to the field
+      // Add the force card to the field without adding its value to the total
       newCurrentPlayer.field.push(cardToPlay);
       message = 'Force card doubled your total value!';
       break;

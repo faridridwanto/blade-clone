@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Player from './Player';
-import { initializeGame, playCard, applyEffectCard } from '../utils/gameLogic';
+import { initializeGame, playCard, applyEffectCard, checkPlayerViability } from '../utils/gameLogic';
 import './GameBoard.css';
 
 const GameBoard = () => {
@@ -11,6 +11,19 @@ const GameBoard = () => {
   useEffect(() => {
     startNewGame();
   }, []);
+
+  // Check player viability when current player changes (new turn)
+  useEffect(() => {
+    if (gameState && !gameOver) {
+      // Only check viability at the start of a turn
+      const viabilityCheck = checkPlayerViability(gameState);
+      if (!viabilityCheck.viable) {
+        setGameState(viabilityCheck.newState);
+        setMessage(viabilityCheck.message);
+        setGameOver(true);
+      }
+    }
+  }, [gameState?.currentPlayerIndex, gameOver]);
 
   const startNewGame = () => {
     const initialState = initializeGame();
@@ -26,7 +39,7 @@ const GameBoard = () => {
       const result = playCard(gameState, cardIndex);
       setGameState(result.newState);
       setMessage(result.message);
-      
+
       if (result.gameOver) {
         setGameOver(true);
       }

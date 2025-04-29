@@ -91,6 +91,7 @@ const GameBoard = () => {
           canPlay={gameState.currentPlayerIndex === 1 && !gameOver}
           onPlayCard={handlePlayCard}
           totalValue={gameState.players[1].totalValue}
+          gameOver={gameOver}
         />
 
         <div className="game-field">
@@ -98,7 +99,8 @@ const GameBoard = () => {
           <div className="field-info">
             <div className="turn-counter">Turn: {gameState.turn}</div>
             <div className="cards-left">
-              Cards Left: {gameState.players[0].hand.length} / 10
+              <div>Your Cards: {gameState.players[0].deck.length} / 8</div>
+              <div>Opponent Cards: {gameState.players[1].deck.length} / 8</div>
             </div>
           </div>
         </div>
@@ -111,6 +113,7 @@ const GameBoard = () => {
           canPlay={gameState.currentPlayerIndex === 0 && !gameOver}
           onPlayCard={handlePlayCard}
           totalValue={gameState.players[0].totalValue}
+          gameOver={gameOver}
         />
       </div>
     </div>

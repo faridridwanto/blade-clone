@@ -7,7 +7,7 @@ const CARD_TYPES = {
   FORCE: 'force'
 };
 
-const DECK_SIZE = 10;
+const INITIAL_HAND_SIZE = 10;
 
 // Helper functions
 const createDeck = () => {
@@ -215,15 +215,15 @@ export const initializeGame = () => {
   // Create and shuffle a single deck
   const fullDeck = shuffleDeck(createDeck());
 
-  // Split the deck evenly between players (21 cards each)
-  const player1AllCards = fullDeck.slice(0, 21);
-  const player2AllCards = fullDeck.slice(21, 42);
+  // Split the deck evenly between players (19 cards each)
+  const player1AllCards = fullDeck.slice(0, 19);
+  const player2AllCards = fullDeck.slice(19, 38);
 
-  // Draw initial hands (10 cards each), leaving 11 cards as deck
-  const player1Deck = player1AllCards.slice(DECK_SIZE);
-  const player2Deck = player2AllCards.slice(DECK_SIZE);
-  const player1Hand = player1AllCards.slice(0, DECK_SIZE);
-  const player2Hand = player2AllCards.slice(0, DECK_SIZE);
+  // Draw initial hands (10 cards each), leaving 9 cards as deck
+  const player1Deck = player1AllCards.slice(INITIAL_HAND_SIZE, 19);
+  const player2Deck = player2AllCards.slice(INITIAL_HAND_SIZE, 19);
+  const player1Hand = player1AllCards.slice(0, INITIAL_HAND_SIZE);
+  const player2Hand = player2AllCards.slice(0, INITIAL_HAND_SIZE);
 
   // Sort hands: number cards in ascending order first, then effect cards grouped at the end
   const sortHand = (hand) => {
@@ -435,11 +435,11 @@ export const checkPlayerViability = (gameState) => {
 export const canPlayerPotentiallySurpass = (player, opponent, lastRemovedCard) => {
   // Check each card individually to see if it can outnumber the opponent's total value if played
   for (const card of player.hand) {
-    if (card.type === CARD_TYPES.NUMBER && (player.totalValue + card.value > opponent.totalValue)) {
+    if (card.type === CARD_TYPES.NUMBER && (player.totalValue + card.value >= opponent.totalValue)) {
       return true;
     }
     // Also check if effect cards can potentially help (like Force doubling the value)
-    if (card.type === CARD_TYPES.FORCE && (player.totalValue * 2 > opponent.totalValue)) {
+    if (card.type === CARD_TYPES.FORCE && (player.totalValue * 2 >= opponent.totalValue)) {
       return true;
     }
     // Mirror card can swap fields if opponent's total value is higher

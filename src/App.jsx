@@ -6,13 +6,13 @@ function App() {
   return (
     <div className="app">
       <header className="app-header">
-        <h1>Card Game</h1>
+        <h1>Blade II - Clone</h1>
       </header>
       <main>
         <GameBoard />
       </main>
       <footer className="app-footer">
-        <p>Card Game - React Implementation</p>
+        <p>Blade II - Clone</p>
       </footer>
     </div>
   );

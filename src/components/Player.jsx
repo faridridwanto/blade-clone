@@ -9,7 +9,8 @@ const Player = ({
   isCurrentPlayer, 
   canPlay, 
   onPlayCard,
-  totalValue
+  totalValue,
+  gameOver
 }) => {
   return (
     <div className={`player ${isCurrentPlayer ? 'current-player' : ''}`}>
@@ -47,7 +48,7 @@ const Player = ({
               value={card.value}
               isPlayable={canPlay}
               onClick={() => onPlayCard(index)}
-              faceDown={!isCurrentPlayer}
+              faceDown={name === "Opponent" && !gameOver}
             />
           ))}
         </div>

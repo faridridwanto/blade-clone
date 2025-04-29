@@ -76,3 +76,28 @@
   background-color: #d4edda;
   border: 2px solid #28a745;
 }
+
+/* Face-down card styling */
+.card.face-down {
+  background-color: #343a40;
+  border: 2px solid #6c757d;
+  background-image: linear-gradient(45deg, #343a40 25%, #495057 25%, #495057 50%, #343a40 50%, #343a40 75%, #495057 75%, #495057 100%);
+  background-size: 20px 20px;
+}
+
+.card-back {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: #fff;
+  font-size: 1.5rem;
+  font-weight: bold;
+}
+
+.card-back::after {
+  content: "?";
+  font-size: 3rem;
+  color: rgba(255, 255, 255, 0.3);
+}

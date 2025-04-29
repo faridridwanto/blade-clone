@@ -73,6 +73,143 @@ const calculateTotalValue = (field) => {
   }, 0);
 };
 
+// Function to determine the best card for the opponent to play
+export const getOpponentCardToPlay = (gameState) => {
+  const { players, currentPlayerIndex } = gameState;
+  // The current player index is the opponent (since this function is called when it's the opponent's turn)
+  const opponentIndex = currentPlayerIndex;
+  const playerIndex = opponentIndex === 0 ? 1 : 0;
+  const opponent = players[opponentIndex];
+  const player = players[playerIndex];
+
+  // If opponent has no cards, return -1
+  if (opponent.hand.length === 0) {
+    return -1;
+  }
+
+  // If opponent has only one card and it's an effect card, they can't play it
+  if (opponent.hand.length === 1 && opponent.hand[0].type !== CARD_TYPES.NUMBER) {
+    return -1;
+  }
+
+  // Check if opponent has only effect cards left
+  const hasOnlyEffectCards = opponent.hand.every(card => card.type !== CARD_TYPES.NUMBER);
+  if (hasOnlyEffectCards) {
+    // Get all effect cards
+    const effectCards = opponent.hand;
+
+    // Check if any effect card can help outnumber the player
+    // Check if Force card can help outnumber
+    const forceCards = effectCards.filter(card => card.type === CARD_TYPES.FORCE);
+    if (forceCards.length > 0 && opponent.totalValue * 2 > player.totalValue) {
+      return opponent.hand.findIndex(card => card.type === CARD_TYPES.FORCE);
+    }
+
+    // Check if Mirror card can help if player's total value is higher
+    const mirrorCards = effectCards.filter(card => card.type === CARD_TYPES.MIRROR);
+    if (mirrorCards.length > 0 && player.totalValue > opponent.totalValue) {
+      return opponent.hand.findIndex(card => card.type === CARD_TYPES.MIRROR);
+    }
+
+    // Check if Bolt card can help by removing player's last card
+    const boltCards = effectCards.filter(card => card.type === CARD_TYPES.BOLT);
+    if (boltCards.length > 0 && player.field.length > 0) {
+      const lastPlayerCard = player.field[player.field.length - 1];
+      const newPlayerValue = player.totalValue - (lastPlayerCard.type === CARD_TYPES.FORCE ? 0 : lastPlayerCard.value);
+      if (opponent.totalValue > newPlayerValue) {
+        return opponent.hand.findIndex(card => card.type === CARD_TYPES.BOLT);
+      }
+    }
+
+    // If no effect card can help, return -1
+    return -1;
+  }
+
+  // Get all number cards and effect cards
+  const numberCards = opponent.hand.filter(card => card.type === CARD_TYPES.NUMBER);
+  const effectCards = opponent.hand.filter(card => card.type !== CARD_TYPES.NUMBER);
+
+  // If opponent has only one card left, it must be a number card (already checked above)
+  if (opponent.hand.length === 1) {
+    return opponent.hand.findIndex(card => card.type === CARD_TYPES.NUMBER);
+  }
+
+  // If opponent has only number cards left, find the lowest one that can outnumber the player
+  if (effectCards.length === 0) {
+    // Sort number cards by value (ascending)
+    const sortedNumberCards = [...numberCards].sort((a, b) => a.value - b.value);
+
+    // Find the lowest card that can outnumber the player
+    for (const card of sortedNumberCards) {
+      if (opponent.totalValue + card.value > player.totalValue) {
+        return opponent.hand.findIndex(c => c.type === CARD_TYPES.NUMBER && c.value === card.value);
+      }
+    }
+
+    // If no card can outnumber the player, return -1 (no valid card to play)
+    return -1;
+  }
+
+  // If opponent has effect cards, randomly decide whether to play one
+  // The probability increases as the number of effect cards increases
+  const effectCardProbability = Math.min(0.3 + (effectCards.length / opponent.hand.length) * 0.4, 0.7);
+  const playEffectCard = Math.random() < effectCardProbability;
+
+  if (playEffectCard) {
+    // Randomly choose between available effect cards
+    const blastCards = effectCards.filter(card => card.type === CARD_TYPES.BLAST);
+    const otherEffectCards = effectCards.filter(card => card.type !== CARD_TYPES.BLAST);
+
+    // Randomly decide whether to play a Blast card if available
+    if (blastCards.length > 0 && Math.random() < 0.4) {
+      return opponent.hand.findIndex(card => card.type === CARD_TYPES.BLAST);
+    }
+
+    // For other effect cards, prioritize those that can help outnumber the player
+    if (otherEffectCards.length > 0) {
+      // Check if Force card can help outnumber
+      const forceCards = otherEffectCards.filter(card => card.type === CARD_TYPES.FORCE);
+      if (forceCards.length > 0 && opponent.totalValue * 2 > player.totalValue) {
+        return opponent.hand.findIndex(card => card.type === CARD_TYPES.FORCE);
+      }
+
+      // Check if Mirror card can help if player's total value is higher
+      const mirrorCards = otherEffectCards.filter(card => card.type === CARD_TYPES.MIRROR);
+      if (mirrorCards.length > 0 && player.totalValue > opponent.totalValue) {
+        return opponent.hand.findIndex(card => card.type === CARD_TYPES.MIRROR);
+      }
+
+      // Check if Bolt card can help by removing player's last card
+      const boltCards = otherEffectCards.filter(card => card.type === CARD_TYPES.BOLT);
+      if (boltCards.length > 0 && player.field.length > 0) {
+        const lastPlayerCard = player.field[player.field.length - 1];
+        const newPlayerValue = player.totalValue - (lastPlayerCard.type === CARD_TYPES.FORCE ? 0 : lastPlayerCard.value);
+        if (opponent.totalValue > newPlayerValue) {
+          return opponent.hand.findIndex(card => card.type === CARD_TYPES.BOLT);
+        }
+      }
+
+      // If no specific effect card is chosen, pick a random one
+      const randomEffectIndex = Math.floor(Math.random() * otherEffectCards.length);
+      return opponent.hand.findIndex(card => card === otherEffectCards[randomEffectIndex]);
+    }
+  }
+
+  // Default strategy: find the lowest number card that can outnumber the player
+  // Sort number cards by value (ascending)
+  const sortedNumberCards = [...numberCards].sort((a, b) => a.value - b.value);
+
+  // Find the lowest card that can outnumber the player
+  for (const card of sortedNumberCards) {
+    if (opponent.totalValue + card.value > player.totalValue) {
+      return opponent.hand.findIndex(c => c.type === CARD_TYPES.NUMBER && c.value === card.value);
+    }
+  }
+
+  // If no card can outnumber the player, play the lowest card
+  return opponent.hand.findIndex(card => card.type === CARD_TYPES.NUMBER && card.value === sortedNumberCards[0].value);
+};
+
 // Game logic functions
 export const initializeGame = () => {
   // Create and shuffle a single deck
@@ -169,6 +306,8 @@ export const applyEffectCard = (gameState, cardType, playerIndex) => {
 
         // Special rule: If Force is the top card in the field and gets hit by Bolt
         if (removedCard.type === CARD_TYPES.FORCE) {
+          // Add back the Force card's value since we don't want to subtract it before halving
+          opponent.totalValue += removedCard.value;
           // Reduce the opponent's total value by half
           opponent.totalValue = Math.floor(opponent.totalValue / 2);
           message = 'Bolt card removed Force card from opponent\'s field! Opponent\'s total value is reduced by half!';
@@ -194,17 +333,17 @@ export const applyEffectCard = (gameState, cardType, playerIndex) => {
         const playerField = [...currentPlayer.field];
         const opponentField = [...opponent.field];
 
-        // Reset total values
-        currentPlayer.totalValue = 0;
-        opponent.totalValue = 0;
+        // Save the total values
+        const playerTotalValue = currentPlayer.totalValue;
+        const opponentTotalValue = opponent.totalValue;
 
         // Swap fields
         currentPlayer.field = opponentField;
         opponent.field = playerField;
 
-        // Recalculate total values
-        currentPlayer.totalValue = calculateTotalValue(currentPlayer.field);
-        opponent.totalValue = calculateTotalValue(opponent.field);
+        // Swap total values instead of recalculating
+        currentPlayer.totalValue = opponentTotalValue;
+        opponent.totalValue = playerTotalValue;
 
         message = 'Mirror card switched the entire field!';
       } else {
@@ -253,50 +392,24 @@ export const checkPlayerViability = (gameState) => {
   const opponentIndex = currentPlayerIndex === 0 ? 1 : 0;
   const opponent = players[opponentIndex];
 
+  // Check if any single card in the player's hand can potentially surpass the opponent's total value
+  const canPotentiallySurpass = canPlayerPotentiallySurpass(currentPlayer, opponent, gameState.lastRemovedCard);
+
   // Check if the current player only has effect cards left
   const hasOnlyEffectCards = currentPlayer.hand.length > 0 && currentPlayer.hand.every(card => card.type !== CARD_TYPES.NUMBER);
-  if (hasOnlyEffectCards) {
+  if (hasOnlyEffectCards && !canPotentiallySurpass) {
     // Create a deep copy of the game state to modify
     const newState = JSON.parse(JSON.stringify(gameState));
 
-    // Player automatically loses if they only have effect cards left
+    // Player automatically loses if they only have effect cards left and none of them can help outnumber the opponent
+    const playerName = currentPlayerIndex === 0 ? 'Player' : 'Opponent';
+    const loserMessage = `${playerName} only has effect cards left and cannot outnumber the opponent. ${playerName} loses the match!`;
     return {
       newState,
-      message: 'Player only has effect cards left. Player loses the match!',
+      message: loserMessage,
       gameOver: true,
       viable: false
     };
-  }
-
-  // Check if any single card in the player's hand can potentially surpass the opponent's total value
-  let canPotentiallySurpass = false;
-
-  // Check each card individually to see if it can outnumber the opponent's total value if played
-  for (const card of currentPlayer.hand) {
-    if (card.type === CARD_TYPES.NUMBER && (currentPlayer.totalValue + card.value > opponent.totalValue)) {
-      canPotentiallySurpass = true;
-      break;
-    }
-    // Also check if effect cards can potentially help (like Force doubling the value)
-    if (card.type === CARD_TYPES.FORCE && (currentPlayer.totalValue * 2 > opponent.totalValue)) {
-      canPotentiallySurpass = true;
-      break;
-    }
-    // Mirror card can swap fields if opponent's total value is higher
-    if (card.type === CARD_TYPES.MIRROR && opponent.totalValue > currentPlayer.totalValue) {
-      canPotentiallySurpass = true;
-      break;
-    }
-    // Bolt card can remove opponent's last card, potentially reducing their total value
-    if (card.type === CARD_TYPES.BOLT && opponent.field.length > 0) {
-      // Calculate opponent's total value without their last card
-      const lastCard = opponent.field[opponent.field.length - 1];
-      const newOpponentValue = opponent.totalValue - (lastCard.type === CARD_TYPES.FORCE ? 0 : lastCard.value);
-      if (currentPlayer.totalValue > newOpponentValue) {
-        canPotentiallySurpass = true;
-        break;
-      }
-    }
   }
 
   if (!canPotentiallySurpass && currentPlayer.hand.length > 0) {
@@ -304,15 +417,51 @@ export const checkPlayerViability = (gameState) => {
     const newState = JSON.parse(JSON.stringify(gameState));
 
     // Player's remaining cards cannot surpass opponent's total value
+    const playerName = currentPlayerIndex === 0 ? 'Player' : 'Opponent';
+    const opponentName = currentPlayerIndex === 0 ? 'opponent' : 'player';
+    const loserMessage = `${playerName}'s remaining cards cannot surpass ${opponentName}'s total value. ${playerName} loses the match!`;
     return {
       newState,
-      message: 'Player\'s remaining cards cannot surpass opponent\'s total value. Player loses the match!',
+      message: loserMessage,
       gameOver: true,
       viable: false
     };
   }
 
   return { viable: true };
+};
+
+// Helper function to check if a player can potentially surpass the opponent's total value
+export const canPlayerPotentiallySurpass = (player, opponent, lastRemovedCard) => {
+  // Check each card individually to see if it can outnumber the opponent's total value if played
+  for (const card of player.hand) {
+    if (card.type === CARD_TYPES.NUMBER && (player.totalValue + card.value > opponent.totalValue)) {
+      return true;
+    }
+    // Also check if effect cards can potentially help (like Force doubling the value)
+    if (card.type === CARD_TYPES.FORCE && (player.totalValue * 2 > opponent.totalValue)) {
+      return true;
+    }
+    // Mirror card can swap fields if opponent's total value is higher
+    if (card.type === CARD_TYPES.MIRROR && opponent.totalValue > player.totalValue) {
+      return true;
+    }
+    // Bolt card can remove opponent's last card, potentially reducing their total value
+    if (card.type === CARD_TYPES.BOLT && opponent.field.length > 0) {
+      // Calculate opponent's total value without their last card
+      const lastCard = opponent.field[opponent.field.length - 1];
+      const newOpponentValue = opponent.totalValue - (lastCard.type === CARD_TYPES.FORCE ? 0 : lastCard.value);
+      if (player.totalValue > newOpponentValue) {
+        return true;
+      }
+    }
+    // Number 1 card can recover a card removed by Bolt
+    if (card.type === CARD_TYPES.NUMBER && card.value === 1 && lastRemovedCard && lastRemovedCard.removedBy === CARD_TYPES.BOLT) {
+      return true;
+    }
+  }
+
+  return false;
 };
 
 export const playCard = (gameState, cardIndex) => {
@@ -337,7 +486,7 @@ export const playCard = (gameState, cardIndex) => {
 
   // Check if this is the last card, and it's an effect card (not allowed)
   if (currentPlayer.hand.length === 1 && cardToPlay.type !== CARD_TYPES.NUMBER) {
-    throw new Error('Cannot play an effect card as your last card');
+    throw new Error('Cannot play an effect card as the last card');
   }
 
   // Create a deep copy of the game state to modify
@@ -361,17 +510,26 @@ export const playCard = (gameState, cardIndex) => {
         // Special rule: If a 1 card recovers a Force card, double the player's total value
         if (lastRemovedCard.card.type === CARD_TYPES.FORCE) {
           newCurrentPlayer.totalValue *= 2;
-          message = `Player played Number 1 and brought back Force card! Player's total value is doubled!`;
+          const playerName = currentPlayerIndex === 0 ? 'Player' : 'Opponent';
+          message = `${playerName} played Number 1 and brought back Force card! ${playerName}'s total value is doubled!`;
         } else {
-          message = `Player played Number 1 and brought back ${lastRemovedCard.card.type} card!`;
+          const playerName = currentPlayerIndex === 0 ? 'Player' : 'Opponent';
+          message = `${playerName} played Number 1 and brought back ${lastRemovedCard.card.type} card!`;
         }
 
         newState.lastRemovedCard = null;
       } else {
+        // Check if this is the opponent and the card doesn't make their total value exceed the player's
+        if (currentPlayerIndex === 1 && newCurrentPlayer.totalValue + cardToPlay.value <= newOpponent.totalValue) {
+          throw new Error('Opponent cannot play a card that doesn\'t make their total value exceed the player\'s total value');
+        }
+
         // Regular number card
         newCurrentPlayer.field.push(cardToPlay);
         newCurrentPlayer.totalValue += cardToPlay.value;
-        message = `Player played Number ${cardToPlay.value}`;
+        const playerName = currentPlayerIndex === 0 ? 'Player' : 'Opponent';
+        message = `${playerName} played Number ${cardToPlay.value}`;
+        newState.lastRemovedCard = null
       }
       break;
 
@@ -387,6 +545,8 @@ export const playCard = (gameState, cardIndex) => {
 
       // Special rule: If Force is the top card in the field and gets hit by Bolt
       if (removedCard.type === CARD_TYPES.FORCE) {
+        // Add back the Force card's value since we don't want to subtract it before halving
+        newOpponent.totalValue += removedCard.value;
         // Reduce the opponent's total value by half
         newOpponent.totalValue = Math.floor(newOpponent.totalValue / 2);
         message = 'Bolt card removed Force card from opponent\'s field! Opponent\'s total value is reduced by half!';
@@ -430,6 +590,7 @@ export const playCard = (gameState, cardIndex) => {
         message = 'Mirror card had no effect (not enough cards on field)';
       }
       // Mirror card is not placed on the field
+      newState.lastRemovedCard = null
       break;
 
     case CARD_TYPES.BLAST:
@@ -456,6 +617,7 @@ export const playCard = (gameState, cardIndex) => {
       // Add the force card to the field without adding its value to the total
       newCurrentPlayer.field.push(cardToPlay);
       message = 'Force card doubled your total value!';
+      newState.lastRemovedCard = null
       break;
 
     default:
@@ -522,6 +684,31 @@ export const playCard = (gameState, cardIndex) => {
 
       // Lower value goes first, player1 goes first in a tie (consistent with initial game setup)
       newState.currentPlayerIndex = player1Value <= player2Value ? player1Index : player2Index;
+
+      // Check if the new current player has only effect cards left
+      const newCurrentPlayerIndex = newState.currentPlayerIndex;
+      const newCurrentPlayerObj = newState.players[newCurrentPlayerIndex];
+      const newOpponentIndex = newCurrentPlayerIndex === 0 ? 1 : 0;
+      const newOpponentObj = newState.players[newOpponentIndex];
+      const hasOnlyEffectCards = newCurrentPlayerObj.hand.length > 0 && 
+                                newCurrentPlayerObj.hand.every(card => card.type !== CARD_TYPES.NUMBER);
+
+      if (hasOnlyEffectCards) {
+        // Check if any of the effect cards can potentially help the player outnumber the opponent
+        const canPotentiallySurpass = canPlayerPotentiallySurpass(newCurrentPlayerObj, newOpponentObj, newState.lastRemovedCard);
+
+        if (!canPotentiallySurpass) {
+          // If the new current player has only effect cards left and none of them can help outnumber the opponent, they lose
+          const playerName = newCurrentPlayerIndex === 0 ? 'Player' : 'Opponent';
+          const opponentName = newCurrentPlayerIndex === 0 ? 'opponent' : 'player';
+          message += ` ${playerName} only has effect cards left and cannot outnumber the opponent. ${playerName} loses the match!`;
+          return {
+            newState,
+            message,
+            gameOver: true
+          };
+        }
+      }
     }
 
     return {
@@ -538,23 +725,18 @@ export const playCard = (gameState, cardIndex) => {
       newState.turn += 1;
     } else {
       // Check if any single card in the player's hand can potentially surpass the opponent's total value
-      let canPotentiallySurpass = false;
-
-      // Check each card individually to see if it can outnumber the opponent's total value if played
-      for (const card of newCurrentPlayer.hand) {
-        if (card.type === CARD_TYPES.NUMBER && (newCurrentPlayer.totalValue + card.value >= newOpponent.totalValue)) {
-          canPotentiallySurpass = true;
-          break;
-        }
-      }
+      const canPotentiallySurpass = canPlayerPotentiallySurpass(newCurrentPlayer, newOpponent, newState.lastRemovedCard);
 
       if (!canPotentiallySurpass && newCurrentPlayer.hand.length > 0) {
         // Player's remaining cards cannot surpass opponent's total value
-        message += ' Player\'s remaining cards cannot surpass opponent\'s total value. Player loses the match!';
+        const playerName = currentPlayerIndex === 0 ? 'Player' : 'Opponent';
+        const opponentName = currentPlayerIndex === 0 ? 'opponent' : 'player';
+        message += ` ${playerName}'s remaining cards cannot surpass ${opponentName}'s total value. ${playerName} loses the match!`;
         gameOver = true;
       } else if (newCurrentPlayer.hand.length === 0) {
         // Current player couldn't surpass opponent's value and has no more cards
-        message += ' Player couldn\'t surpass opponent\'s value. Game over!';
+        const playerName = currentPlayerIndex === 0 ? 'Player' : 'Opponent';
+        message += ` ${playerName} couldn't surpass opponent's value. ${playerName} loses the match!`;
         gameOver = true;
       } else {
         // Current player couldn't surpass opponent's value but still has cards that can potentially surpass
@@ -568,19 +750,13 @@ export const playCard = (gameState, cardIndex) => {
     if (newOpponent.hand.length > 0) {
       // If opponent has only 1 card left and it's an effect card, they should lose
       if (newOpponent.hand.length === 1 && newOpponent.hand[0].type !== CARD_TYPES.NUMBER) {
-        message += ' Player has no more cards. Opponent has only one effect card left. Player wins!';
+        const playerName = currentPlayerIndex === 0 ? 'Player' : 'Opponent';
+        const opponentName = currentPlayerIndex === 0 ? 'Opponent' : 'Player';
+        message += ` ${playerName} has no more cards. ${opponentName} has only one effect card left. ${playerName} wins!`;
         gameOver = true;
       } else {
         // Check if opponent has any cards that can potentially outnumber the current field
-        let opponentCanWin = false;
-
-        // Check for number cards that would make opponent's total value higher
-        for (const card of newOpponent.hand) {
-          if (card.type === CARD_TYPES.NUMBER && (newOpponent.totalValue + card.value > newCurrentPlayer.totalValue)) {
-            opponentCanWin = true;
-            break;
-          }
-        }
+        const opponentCanWin = canPlayerPotentiallySurpass(newOpponent, newCurrentPlayer, newState.lastRemovedCard);
 
         if (opponentCanWin) {
           // Give the turn to the opponent if they can potentially win
@@ -588,13 +764,16 @@ export const playCard = (gameState, cardIndex) => {
           newState.turn += 1;
         } else {
           // Opponent can't win, so current player wins
-          message += ' Player has no more cards. Opponent cannot outnumber the field. Player wins!';
+          const playerName = currentPlayerIndex === 0 ? 'Player' : 'Opponent';
+          const opponentName = currentPlayerIndex === 0 ? 'Opponent' : 'Player';
+          message += ` ${playerName} has no more cards. ${opponentName} cannot outnumber the field. ${playerName} wins!`;
           gameOver = true;
         }
       }
     } else {
       // If opponent also has no cards, current player wins
-      message += ' Player has no more cards but won the game!';
+      const playerName = currentPlayerIndex === 0 ? 'Player' : 'Opponent';
+      message += ` ${playerName} has no more cards but won the game! ${playerName} wins!`;
       gameOver = true;
     }
   } else {

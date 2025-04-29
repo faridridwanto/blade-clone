@@ -1,10 +1,14 @@
 import React from 'react';
 import './Card.css';
 
-const Card = ({ type, value, onClick, isPlayable }) => {
+const Card = ({ type, value, onClick, isPlayable, faceDown = false }) => {
   // Card types: 'number', 'bolt', 'mirror', 'blast', 'force'
-  
+
   const getCardContent = () => {
+    if (faceDown) {
+      return <div className="card-back"></div>;
+    }
+
     switch (type) {
       case 'number':
         return <div className="card-value">{value}</div>;
@@ -43,7 +47,7 @@ const Card = ({ type, value, onClick, isPlayable }) => {
 
   return (
     <div 
-      className={`card ${type} ${isPlayable ? 'playable' : ''}`} 
+      className={`card ${type} ${isPlayable ? 'playable' : ''} ${faceDown ? 'face-down' : ''}`} 
       onClick={isPlayable ? onClick : undefined}
     >
       {getCardContent()}

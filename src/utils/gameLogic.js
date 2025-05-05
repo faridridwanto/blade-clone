@@ -1,4 +1,6 @@
 // Game constants
+import otherEffectCards from 'jsdom/lib/jsdom/living/traversal/helpers.js';
+
 const CARD_TYPES = {
   NUMBER: 'number',
   BOLT: 'bolt',
@@ -115,8 +117,13 @@ export const getOpponentCardToPlay = (gameState) => {
     const boltCards = effectCards.filter(card => card.type === CARD_TYPES.BOLT);
     if (boltCards.length > 0 && player.field.length > 0) {
       const lastPlayerCard = player.field[player.field.length - 1];
-      const newPlayerValue = player.totalValue - (lastPlayerCard.type === CARD_TYPES.FORCE ? 0 : lastPlayerCard.value);
-      if (opponent.totalValue > newPlayerValue) {
+      let newPlayerValue = player.totalValue
+      if (player.field.length === 1) {
+        newPlayerValue = player.totalValue - (lastPlayerCard.type === CARD_TYPES.FORCE ? 1 : lastPlayerCard.value);
+      } else {
+        newPlayerValue = player.totalValue - (lastPlayerCard.type === CARD_TYPES.FORCE ? (player.totalValue/2) : lastPlayerCard.value);
+      }
+      if (opponent.totalValue >= newPlayerValue) {
         return opponent.hand.findIndex(card => card.type === CARD_TYPES.BOLT);
       }
     }
@@ -128,11 +135,6 @@ export const getOpponentCardToPlay = (gameState) => {
   // Get all number cards and effect cards
   const numberCards = opponent.hand.filter(card => card.type === CARD_TYPES.NUMBER);
   const effectCards = opponent.hand.filter(card => card.type !== CARD_TYPES.NUMBER);
-
-  // If opponent has only one card left, it must be a number card (already checked above)
-  if (opponent.hand.length === 1) {
-    return opponent.hand.findIndex(card => card.type === CARD_TYPES.NUMBER);
-  }
 
   // If opponent has only number cards left, find the lowest one that can outnumber the player
   if (effectCards.length === 0) {
@@ -146,7 +148,13 @@ export const getOpponentCardToPlay = (gameState) => {
       }
     }
 
-    // If no card can outnumber the player, return -1 (no valid card to play)
+    // If no card can outnumber the player, try to make a draw
+    for (const card of sortedNumberCards) {
+      if (opponent.totalValue + card.value === player.totalValue) {
+        return opponent.hand.findIndex(c => c.type === CARD_TYPES.NUMBER && c.value === card.value);
+      }
+    }
+    // If no card can make a draw, return -1 (no valid card to play)
     return -1;
   }
 
@@ -169,13 +177,14 @@ export const getOpponentCardToPlay = (gameState) => {
     if (otherEffectCards.length > 0) {
       // Check if Force card can help outnumber
       const forceCards = otherEffectCards.filter(card => card.type === CARD_TYPES.FORCE);
-      if (forceCards.length > 0 && opponent.totalValue * 2 > player.totalValue) {
+      if (forceCards.length > 0 && opponent.field.length > 0 && opponent.totalValue * 2 >= player.totalValue) {
         return opponent.hand.findIndex(card => card.type === CARD_TYPES.FORCE);
       }
 
       // Check if Mirror card can help if player's total value is higher
       const mirrorCards = otherEffectCards.filter(card => card.type === CARD_TYPES.MIRROR);
-      if (mirrorCards.length > 0 && player.totalValue > opponent.totalValue) {
+      if (mirrorCards.length > 0 && player.field.length > 0 && opponent.field.length > 0 &&
+        player.totalValue >= opponent.totalValue) {
         return opponent.hand.findIndex(card => card.type === CARD_TYPES.MIRROR);
       }
 
@@ -183,7 +192,12 @@ export const getOpponentCardToPlay = (gameState) => {
       const boltCards = otherEffectCards.filter(card => card.type === CARD_TYPES.BOLT);
       if (boltCards.length > 0 && player.field.length > 0) {
         const lastPlayerCard = player.field[player.field.length - 1];
-        const newPlayerValue = player.totalValue - (lastPlayerCard.type === CARD_TYPES.FORCE ? 0 : lastPlayerCard.value);
+        let newPlayerValue = player.totalValue
+        if (player.field.length === 1) {
+          newPlayerValue = player.totalValue - (lastPlayerCard.type === CARD_TYPES.FORCE ? 1 : lastPlayerCard.value);
+        } else {
+          newPlayerValue = player.totalValue - (lastPlayerCard.type === CARD_TYPES.FORCE ? (player.totalValue/2) : lastPlayerCard.value);
+        }
         if (opponent.totalValue > newPlayerValue) {
           return opponent.hand.findIndex(card => card.type === CARD_TYPES.BOLT);
         }
@@ -206,8 +220,43 @@ export const getOpponentCardToPlay = (gameState) => {
     }
   }
 
-  // If no card can outnumber the player, play the lowest card
-  return opponent.hand.findIndex(card => card.type === CARD_TYPES.NUMBER && card.value === sortedNumberCards[0].value);
+  // If no number card can outnumber the player, try to use effect cards
+  // Check if Force card can help outnumber
+  const forceCards = opponent.hand.filter(card => card.type === CARD_TYPES.FORCE);
+  if (forceCards.length > 0 && opponent.field.length > 0 && opponent.totalValue * 2 >= player.totalValue) {
+    return opponent.hand.findIndex(card => card.type === CARD_TYPES.FORCE);
+  }
+
+  // Check if Mirror card can help if player's total value is higher
+  const mirrorCards = opponent.hand.filter(card => card.type === CARD_TYPES.MIRROR);
+  if (mirrorCards.length > 0 && player.field.length > 0 && opponent.field.length > 0 && player.totalValue >= opponent.totalValue) {
+    return opponent.hand.findIndex(card => card.type === CARD_TYPES.MIRROR);
+  }
+
+  // Check if Bolt card can help by removing player's last card
+  const boltCards = opponent.hand.filter(card => card.type === CARD_TYPES.BOLT);
+  if (boltCards.length > 0 && player.field.length > 0) {
+    const lastPlayerCard = player.field[player.field.length - 1];
+    let newPlayerValue = player.totalValue
+    if (player.field.length === 1) {
+      newPlayerValue = player.totalValue - (lastPlayerCard.type === CARD_TYPES.FORCE ? 1 : lastPlayerCard.value);
+    } else {
+      newPlayerValue = player.totalValue - (lastPlayerCard.type === CARD_TYPES.FORCE ? (player.totalValue/2) : lastPlayerCard.value);
+    }
+    if (opponent.totalValue > newPlayerValue) {
+      return opponent.hand.findIndex(card => card.type === CARD_TYPES.BOLT);
+    }
+  }
+
+  // If no card can outnumber the player, try to make a draw
+  for (const card of sortedNumberCards) {
+    if (opponent.totalValue + card.value === player.totalValue) {
+      return opponent.hand.findIndex(c => c.type === CARD_TYPES.NUMBER && c.value === card.value);
+    }
+  }
+
+  // If no card can draw the player, return -1 (no valid card to play)
+  return -1;
 };
 
 // Game logic functions
@@ -279,7 +328,8 @@ export const initializeGame = () => {
     ],
     currentPlayerIndex,
     turn: 1,
-    lastRemovedCard: null
+    lastRemovedCard: null,
+    cardPlayLog: [] // Initialize an empty log array
   };
 };
 
@@ -450,8 +500,13 @@ export const canPlayerPotentiallySurpass = (player, opponent, lastRemovedCard) =
     if (card.type === CARD_TYPES.BOLT && opponent.field.length > 0) {
       // Calculate opponent's total value without their last card
       const lastCard = opponent.field[opponent.field.length - 1];
-      const newOpponentValue = opponent.totalValue - (lastCard.type === CARD_TYPES.FORCE ? 0 : lastCard.value);
-      if (player.totalValue > newOpponentValue) {
+      let newOpponentValue = opponent.totalValue;
+      if (opponent.field.length === 1) {
+        newOpponentValue = opponent.totalValue - (lastCard.type === CARD_TYPES.FORCE ? 1 : lastCard.value);
+      } else {
+        newOpponentValue = opponent.totalValue - (lastCard.type === CARD_TYPES.FORCE ? (opponent.totalValue/2) : lastCard.value);
+      }
+      if (player.totalValue >= newOpponentValue) {
         return true;
       }
     }
@@ -494,6 +549,15 @@ export const playCard = (gameState, cardIndex) => {
   const newCurrentPlayer = newState.players[currentPlayerIndex];
   const newOpponent = newState.players[opponentIndex];
 
+  // Create log entry for the card play
+  const playerName = currentPlayerIndex === 0 ? 'player' : 'opponent';
+  let cardTypeText = cardToPlay.type;
+  if (cardToPlay.type === CARD_TYPES.NUMBER) {
+    cardTypeText = `Number ${cardToPlay.value}`;
+  }
+  const logEntry = `${playerName} played ${cardTypeText}`;
+  newState.cardPlayLog.push(logEntry);
+
   // Remove the card from the hand
   newCurrentPlayer.hand.splice(cardIndex, 1);
 
@@ -520,7 +584,7 @@ export const playCard = (gameState, cardIndex) => {
         newState.lastRemovedCard = null;
       } else {
         // Check if this is the opponent and the card doesn't make their total value exceed the player's
-        if (currentPlayerIndex === 1 && newCurrentPlayer.totalValue + cardToPlay.value <= newOpponent.totalValue) {
+        if (currentPlayerIndex === 1 && newCurrentPlayer.totalValue + cardToPlay.value < newOpponent.totalValue) {
           throw new Error('Opponent cannot play a card that doesn\'t make their total value exceed the player\'s total value');
         }
 
@@ -529,7 +593,7 @@ export const playCard = (gameState, cardIndex) => {
         newCurrentPlayer.totalValue += cardToPlay.value;
         const playerName = currentPlayerIndex === 0 ? 'Player' : 'Opponent';
         message = `${playerName} played Number ${cardToPlay.value}`;
-        newState.lastRemovedCard = null
+        newState.lastRemovedCard = null;
       }
       break;
 
@@ -573,17 +637,16 @@ export const playCard = (gameState, cardIndex) => {
         const playerField = [...newCurrentPlayer.field];
         const opponentField = [...newOpponent.field];
 
-        // Reset total values
-        newCurrentPlayer.totalValue = 0;
-        newOpponent.totalValue = 0;
+        // Save current player total values
+        const playerTotalValue = newCurrentPlayer.totalValue;
+
+        // Swap total values
+        newCurrentPlayer.totalValue = newOpponent.totalValue;
+        newOpponent.totalValue = playerTotalValue;
 
         // Swap fields
         newCurrentPlayer.field = opponentField;
         newOpponent.field = playerField;
-
-        // Recalculate total values
-        newCurrentPlayer.totalValue = calculateTotalValue(newCurrentPlayer.field);
-        newOpponent.totalValue = calculateTotalValue(newOpponent.field);
 
         message = 'Mirror card switched the entire field!';
       } else {

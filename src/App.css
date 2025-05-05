@@ -7,9 +7,14 @@
 
 .app-header {
   background-color: #282c34;
-  padding: 1rem;
+  padding: 0.5rem;
   color: white;
   text-align: center;
+}
+
+.app-header h1 {
+  font-size: 1.5rem;
+  margin: 0.5rem 0;
 }
 
 .app-footer {

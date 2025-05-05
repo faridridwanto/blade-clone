@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Player from './Player';
+import Card from './Card';
 import { initializeGame, playCard, applyEffectCard, checkPlayerViability, getOpponentCardToPlay } from '../utils/gameLogic';
 import './GameBoard.css';
 
@@ -7,6 +8,11 @@ const GameBoard = () => {
   const [gameState, setGameState] = useState(null);
   const [message, setMessage] = useState('');
   const [gameOver, setGameOver] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(false);
+  const [showCardLog, setShowCardLog] = useState(false);
+
+  const opponentFieldRef = useRef(null);
+  const playerFieldRef = useRef(null);
 
   const startNewGame = () => {
     const initialState = initializeGame();
@@ -59,6 +65,13 @@ const GameBoard = () => {
         // If a valid card index is returned, play it
         if (cardIndex >= 0) {
           handlePlayCard(cardIndex);
+        } else {
+          setMessage('Opponent has no valid moves left! You won the match!');
+          setGameState((prevState) => ({
+            ...prevState,
+            currentPlayerIndex: 0,
+          }));
+          setGameOver(true);
         }
       }, 1000); // 1 second delay
 
@@ -67,26 +80,100 @@ const GameBoard = () => {
     }
   }, [gameState, gameState?.currentPlayerIndex, gameOver, handlePlayCard]);
 
+  // Auto-scroll to bottom when cards are added to the field
+  useEffect(() => {
+    if (gameState) {
+      // Scroll opponent field to bottom
+      if (opponentFieldRef.current) {
+        opponentFieldRef.current.scrollTop = opponentFieldRef.current.scrollHeight;
+      }
+
+      // Scroll player field to bottom
+      if (playerFieldRef.current) {
+        playerFieldRef.current.scrollTop = playerFieldRef.current.scrollHeight;
+      }
+    }
+  }, [gameState?.players[0].field, gameState?.players[1].field]);
+
   if (!gameState) {
     return <div className="loading">Loading game...</div>;
   }
 
   return (
     <div className="game-board">
+      {showTutorial && (
+        <div className="tutorial-modal-overlay" onClick={() => setShowTutorial(false)}>
+          <div className="tutorial-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="tutorial-header">
+              <h2>How to Play Blade II</h2>
+              <button className="close-btn" onClick={() => setShowTutorial(false)}>×</button>
+            </div>
+            <div className="tutorial-content">
+              <h3>Game Objective</h3>
+              <p>The goal is to have a higher total value than your opponent. Players take turns playing cards to increase their total value.</p>
+
+              <h3>Card Types</h3>
+              <ul>
+                <li><strong>Number Cards (1-7):</strong> Add their value to your total.</li>
+                <li><strong>Bolt:</strong> Removes the last card placed by your opponent. If it removes a Force card, the opponent's total value is halved.</li>
+                <li><strong>Mirror:</strong> Switches the entire field between players, including total values.</li>
+                <li><strong>Blast:</strong> Randomly removes one card from your opponent's hand. You get to play another card after using Blast.</li>
+                <li><strong>Force:</strong> Doubles your total value. Cannot be played as your first card.</li>
+              </ul>
+
+              <h3>Special Rules</h3>
+              <ul>
+                <li>Number 1 card can recover the last card removed by a Bolt.</li>
+                <li>You cannot play an effect card as your last card.</li>
+                <li>If both players have equal total value, the field is cleared and new cards are drawn from decks.</li>
+                <li>If your remaining cards cannot surpass your opponent's total value, you lose.</li>
+              </ul>
+
+              <h3>Game End</h3>
+              <p>The game ends when a player has no more cards or when a player's remaining cards cannot surpass the opponent's total value.</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="game-status">
         <h2 className="game-message">{message}</h2>
-        {gameOver && (
-          <button className="new-game-btn" onClick={startNewGame}>
-            Start New Game
+        <div className="game-buttons">
+          {gameOver && (
+            <button className="new-game-btn" onClick={startNewGame}>
+              Start New Game
+            </button>
+          )}
+          <button className="tutorial-btn" onClick={() => setShowTutorial(true)}>
+            How to Play
           </button>
-        )}
+          <button className="log-btn" onClick={() => setShowCardLog(!showCardLog)}>
+            {showCardLog ? 'Hide Log' : 'Show Log'}
+          </button>
+        </div>
       </div>
+
+      {showCardLog && gameState && gameState.cardPlayLog && (
+        <div className="card-log-container">
+          <h3>Card Play Log</h3>
+          <div className="card-log">
+            {gameState.cardPlayLog.length > 0 ? (
+              <ul>
+                {gameState.cardPlayLog.map((entry, index) => (
+                  <li key={index}>{entry}</li>
+                ))}
+              </ul>
+            ) : (
+              <p>No cards have been played yet.</p>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="players-container">
         <Player
           name="Opponent"
           hand={gameState.players[1].hand}
-          field={gameState.players[1].field}
           isCurrentPlayer={gameState.currentPlayerIndex === 1}
           canPlay={gameState.currentPlayerIndex === 1 && !gameOver}
           onPlayCard={handlePlayCard}
@@ -103,12 +190,49 @@ const GameBoard = () => {
               <div>Opponent Cards: {gameState.players[1].deck.length} / 8</div>
             </div>
           </div>
+
+          <div className="players-fields">
+            <div className="player-field">
+              <h3>Opponent's Field</h3>
+              <div className="cards-container" ref={opponentFieldRef}>
+                {gameState.players[1].field.length > 0 ? (
+                  gameState.players[1].field.map((card, index) => (
+                    <Card
+                      key={`opponent-field-${index}`}
+                      type={card.type}
+                      value={card.value}
+                      isPlayable={false}
+                    />
+                  ))
+                ) : (
+                  <div className="empty-field">No cards on field</div>
+                )}
+              </div>
+            </div>
+
+            <div className="player-field">
+              <h3>Your Field</h3>
+              <div className="cards-container" ref={playerFieldRef}>
+                {gameState.players[0].field.length > 0 ? (
+                  gameState.players[0].field.map((card, index) => (
+                    <Card
+                      key={`your-field-${index}`}
+                      type={card.type}
+                      value={card.value}
+                      isPlayable={false}
+                    />
+                  ))
+                ) : (
+                  <div className="empty-field">No cards on field</div>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
 
         <Player
           name="You"
           hand={gameState.players[0].hand}
-          field={gameState.players[0].field}
           isCurrentPlayer={gameState.currentPlayerIndex === 0}
           canPlay={gameState.currentPlayerIndex === 0 && !gameOver}
           onPlayCard={handlePlayCard}

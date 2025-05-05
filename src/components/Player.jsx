@@ -5,7 +5,6 @@ import './Player.css';
 const Player = ({ 
   name, 
   hand, 
-  field, 
   isCurrentPlayer, 
   canPlay, 
   onPlayCard,
@@ -20,23 +19,6 @@ const Player = ({
         {isCurrentPlayer && <div className="player-turn-indicator">Your Turn</div>}
       </div>
 
-      <div className="player-field">
-        <h3>Field</h3>
-        <div className="cards-container">
-          {field.length > 0 ? (
-            field.map((card, index) => (
-              <Card
-                key={`field-${index}`}
-                type={card.type}
-                value={card.value}
-                isPlayable={false}
-              />
-            ))
-          ) : (
-            <div className="empty-field">No cards on field</div>
-          )}
-        </div>
-      </div>
 
       <div className="player-hand">
         <h3>{isCurrentPlayer ? 'Your Hand' : 'Opponent\'s Hand'}</h3>

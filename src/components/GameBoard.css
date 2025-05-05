@@ -1,30 +1,37 @@
 .game-board {
   width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
   display: flex;
   flex-direction: column;
   align-items: center;
 }
 
 .game-status {
-  width: 100%;
-  max-width: 800px;
-  margin-bottom: 20px;
-  padding: 15px;
+  width: 50%;
+  min-width: 300px;
+  margin-bottom: 10px;
+  padding: 8px;
   background-color: rgba(0, 0, 0, 0.2);
-  border-radius: 10px;
+  border-radius: 6px;
   text-align: center;
 }
 
 .game-message {
   margin: 0;
-  font-size: 1.2rem;
+  font-size: 1rem;
   color: #fff;
 }
 
-.new-game-btn {
+.game-buttons {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
   margin-top: 15px;
+}
+
+.new-game-btn, .tutorial-btn, .log-btn {
   padding: 10px 20px;
-  background-color: #28a745;
   color: white;
   border: none;
   border-radius: 5px;
@@ -33,38 +40,126 @@
   transition: background-color 0.3s;
 }
 
+.new-game-btn {
+  background-color: #28a745;
+}
+
 .new-game-btn:hover {
   background-color: #218838;
+}
+
+.tutorial-btn {
+  background-color: #17a2b8;
+}
+
+.tutorial-btn:hover {
+  background-color: #138496;
+}
+
+.log-btn {
+  background-color: #6c757d;
+}
+
+.log-btn:hover {
+  background-color: #5a6268;
+}
+
+.card-log-container {
+  width: 80%;
+  max-width: 800px;
+  margin: 15px auto;
+  padding: 15px;
+  background-color: rgba(0, 0, 0, 0.3);
+  border-radius: 8px;
+  color: white;
+}
+
+.card-log-container h3 {
+  margin-top: 0;
+  text-align: center;
+  color: #fff;
+  margin-bottom: 10px;
+}
+
+.card-log {
+  max-height: 200px;
+  overflow-y: auto;
+  background-color: rgba(0, 0, 0, 0.2);
+  border-radius: 5px;
+  padding: 10px;
+}
+
+.card-log ul {
+  list-style-type: none;
+  padding: 0;
+  margin: 0;
+}
+
+.card-log li {
+  padding: 5px 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.card-log li:last-child {
+  border-bottom: none;
 }
 
 .players-container {
   width: 100%;
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 20px;
+  flex-direction: row;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 15px;
+  flex-wrap: wrap;
 }
 
 .game-field {
-  width: 100%;
-  max-width: 800px;
+  width: 25%;
+  min-width: 250px;
   padding: 15px;
   background-color: rgba(0, 0, 0, 0.3);
-  border-radius: 10px;
+  border-radius: 8px;
   text-align: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 .game-field h3 {
   margin-top: 0;
-  margin-bottom: 15px;
-  font-size: 1.3rem;
+  margin-bottom: 10px;
+  font-size: 1.1rem;
   color: #fff;
 }
 
 .field-info {
   display: flex;
   justify-content: space-around;
-  margin-bottom: 10px;
+  margin-bottom: 20px;
+}
+
+.players-fields {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  gap: 15px;
+  margin-top: 10px;
+  width: 100%;
+}
+
+.players-fields .player-field {
+  flex: 1;
+  background-color: rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.players-fields .player-field h3 {
+  margin-top: 0;
+  margin-bottom: 8px;
+  font-size: 0.9rem;
+  color: #fff;
 }
 
 .turn-counter, .cards-left {
@@ -83,14 +178,192 @@
   color: #fff;
 }
 
+/* Tutorial Modal Styles */
+.tutorial-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.7);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.tutorial-modal {
+  background-color: #fff;
+  border-radius: 10px;
+  width: 90%;
+  max-width: 700px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
+  display: flex;
+  flex-direction: column;
+  animation: modal-appear 0.3s ease-out;
+}
+
+.tutorial-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 18px 25px;
+  background: linear-gradient(135deg, #17a2b8, #138496);
+  color: white;
+  border-top-left-radius: 10px;
+  border-top-right-radius: 10px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.tutorial-header h2 {
+  margin: 0;
+  font-size: 1.6rem;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.close-btn {
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  color: white;
+  font-size: 1.8rem;
+  cursor: pointer;
+  padding: 0 0 2px 0;
+  line-height: 0.8;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.close-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: scale(1.1);
+}
+
+.tutorial-content {
+  padding: 25px 30px;
+  color: #333;
+  line-height: 1.6;
+  font-size: 1.05rem;
+  text-align: left;
+}
+
+.tutorial-content h3 {
+  margin-top: 25px;
+  margin-bottom: 12px;
+  color: #17a2b8;
+  font-size: 1.3rem;
+  font-weight: 600;
+  border-bottom: 1px solid rgba(23, 162, 184, 0.2);
+  padding-bottom: 8px;
+  text-align: center;
+}
+
+.tutorial-content h3:first-child {
+  margin-top: 0;
+}
+
+.tutorial-content p, .tutorial-content ul {
+  margin-bottom: 15px;
+  line-height: 1.5;
+}
+
+.tutorial-content ul {
+  padding-left: 5px;
+  list-style-type: none;
+}
+
+.tutorial-content li {
+  margin-bottom: 12px;
+  position: relative;
+  padding-left: 25px;
+}
+
+.tutorial-content li::before {
+  content: "▶";
+  color: #17a2b8;
+  font-size: 0.8rem;
+  position: absolute;
+  left: 5px;
+  top: 4px;
+  transform: rotate(90deg);
+}
+
+.tutorial-content li strong {
+  color: #17a2b8;
+}
+
+/* Modal animation */
+@keyframes modal-appear {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 /* Responsive adjustments */
+@media (max-width: 1200px) {
+  .players-container {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .player, .game-field {
+    width: 90%;
+    min-width: auto;
+    max-width: 800px;
+  }
+
+  .players-fields {
+    flex-direction: column;
+    gap: 10px;
+  }
+}
+
 @media (max-width: 600px) {
   .game-field {
     padding: 10px;
   }
-  
+
   .field-info {
     flex-direction: column;
     gap: 10px;
+  }
+
+  .tutorial-modal {
+    width: 95%;
+    max-height: 95vh;
+  }
+
+  .tutorial-header h2 {
+    font-size: 1.3rem;
+  }
+
+  .tutorial-content {
+    padding: 15px;
+  }
+
+  .card {
+    width: 80px;
+    height: 120px;
+  }
+
+  .card-value {
+    font-size: 2.5rem;
+  }
+
+  .effect-icon {
+    font-size: 2rem;
   }
 }

@@ -588,6 +588,11 @@ export const playCard = (gameState, cardIndex) => {
           throw new Error('Opponent cannot play a card that doesn\'t make their total value exceed the player\'s total value');
         }
 
+        // Check if this is the player and the card doesn't make their total value exceed the opponent's
+        if (currentPlayerIndex === 0 && newCurrentPlayer.totalValue + cardToPlay.value < newOpponent.totalValue) {
+          throw new Error('Player cannot play a card that doesn\'t make their total value exceed the opponent\'s total value');
+        }
+
         // Regular number card
         newCurrentPlayer.field.push(cardToPlay);
         newCurrentPlayer.totalValue += cardToPlay.value;

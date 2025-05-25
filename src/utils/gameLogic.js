@@ -261,6 +261,14 @@ export const getOpponentCardToPlay = (gameState) => {
 
 // Game logic functions
 export const initializeGame = () => {
+  // Animation flags
+  const animations = {
+    thunderEffect: false,
+    flashEffect: false,
+    explosionEffect: false,
+    targetCard: null,
+    targetElement: null
+  };
   // Create and shuffle a single deck
   const fullDeck = shuffleDeck(createDeck());
 
@@ -329,7 +337,8 @@ export const initializeGame = () => {
     currentPlayerIndex,
     turn: 1,
     lastRemovedCard: null,
-    cardPlayLog: [] // Initialize an empty log array
+    cardPlayLog: [], // Initialize an empty log array
+    animations: animations // Add animation flags
   };
 };
 
@@ -379,6 +388,15 @@ export const applyEffectCard = (gameState, cardType, playerIndex) => {
     case CARD_TYPES.MIRROR:
       // Switch the entire field between players
       if (currentPlayer.field.length > 0 && opponent.field.length > 0) {
+        // Set animation flag for flash effect on entire field
+        newState.animations = {
+          thunderEffect: false,
+          flashEffect: true,
+          explosionEffect: false,
+          targetCard: null,
+          targetElement: 'gameField'
+        };
+
         // Save the fields
         const playerField = [...currentPlayer.field];
         const opponentField = [...opponent.field];
@@ -407,6 +425,16 @@ export const applyEffectCard = (gameState, cardType, playerIndex) => {
       // Randomly remove one card from opponent's hand
       if (opponent.hand.length > 0) {
         const randomIndex = Math.floor(Math.random() * opponent.hand.length);
+
+        // Set animation flag for explosion effect on the targeted card
+        newState.animations = {
+          thunderEffect: false,
+          flashEffect: false,
+          explosionEffect: true,
+          targetCard: randomIndex,
+          targetElement: 'opponentHand'
+        };
+
         opponent.hand.splice(randomIndex, 1);
         message = 'Blast card removed a random card from opponent\'s hand!';
       } else {
@@ -417,6 +445,15 @@ export const applyEffectCard = (gameState, cardType, playerIndex) => {
       break;
 
     case CARD_TYPES.FORCE:
+      // Set animation flag for flash effect on score panel
+      newState.animations = {
+        thunderEffect: false,
+        flashEffect: true,
+        explosionEffect: false,
+        targetCard: null,
+        targetElement: 'scorePanel'
+      };
+
       // Double the latest total value
       currentPlayer.totalValue *= 2;
 
@@ -608,6 +645,15 @@ export const playCard = (gameState, cardIndex) => {
         throw new Error('Cannot use Bolt card when opponent\'s field is empty');
       }
 
+      // Set animation flag for thunder effect on opponent's last card
+      newState.animations = {
+        thunderEffect: true,
+        flashEffect: false,
+        explosionEffect: false,
+        targetCard: newOpponent.field.length - 1,
+        targetElement: 'opponentField'
+      };
+
       // Remove the last card placed by an opponent
       const removedCard = newOpponent.field.pop();
       newOpponent.totalValue -= removedCard.value;
@@ -635,6 +681,15 @@ export const playCard = (gameState, cardIndex) => {
       if (newOpponent.field.length === 0) {
         throw new Error('Cannot use Mirror card when opponent\'s field is empty');
       }
+
+      // Set animation flag for flash effect on entire field
+      newState.animations = {
+        thunderEffect: false,
+        flashEffect: true,
+        explosionEffect: false,
+        targetCard: null,
+        targetElement: 'gameField'
+      };
 
       // Switch the entire field between players
       if (newCurrentPlayer.field.length > 0) {
@@ -665,6 +720,16 @@ export const playCard = (gameState, cardIndex) => {
       // Randomly remove one card from an opponent's hand
       if (newOpponent.hand.length > 0) {
         const randomIndex = Math.floor(Math.random() * newOpponent.hand.length);
+
+        // Set animation flag for explosion effect on the targeted card
+        newState.animations = {
+          thunderEffect: false,
+          flashEffect: false,
+          explosionEffect: true,
+          targetCard: randomIndex,
+          targetElement: 'opponentHand'
+        };
+
         newOpponent.hand.splice(randomIndex, 1);
         message = 'Blast card removed a random card from opponent\'s hand!';
       } else {
@@ -678,6 +743,15 @@ export const playCard = (gameState, cardIndex) => {
       if (newCurrentPlayer.field.length === 0) {
         throw new Error('Cannot use Force card as the first card on the field');
       }
+
+      // Set animation flag for flash effect on score panel
+      newState.animations = {
+        thunderEffect: false,
+        flashEffect: true,
+        explosionEffect: false,
+        targetCard: null,
+        targetElement: 'scorePanel'
+      };
 
       // Double the latest total value
       newCurrentPlayer.totalValue *= 2;

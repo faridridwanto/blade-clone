@@ -30,12 +30,84 @@ const GameBoard = () => {
 
     try {
       const result = playCard(gameState, cardIndex);
-      setGameState(result.newState);
-      setMessage(result.message);
 
-      if (result.gameOver) {
-        setGameOver(true);
+      // Handle animations before updating state
+      if (result.newState.animations) {
+        const { animations } = result.newState;
+
+        // Apply thunder effect for Bolt card
+        if (animations.thunderEffect && animations.targetElement === 'opponentField') {
+          const opponentField = document.querySelector('.player-field:first-child .cards-container');
+          if (opponentField && opponentField.children.length > 0) {
+            const targetCard = opponentField.children[animations.targetCard];
+            if (targetCard) {
+              targetCard.classList.add('thunder-effect');
+              // Remove the class after animation completes
+              setTimeout(() => {
+                targetCard.classList.remove('thunder-effect');
+              }, 500);
+            }
+          }
+        }
+
+        // Apply flash effect for Mirror card
+        if (animations.flashEffect && animations.targetElement === 'gameField') {
+          const gameField = document.querySelector('.game-field');
+          if (gameField) {
+            gameField.classList.add('flash-effect');
+            // Remove the class after animation completes
+            setTimeout(() => {
+              gameField.classList.remove('flash-effect');
+            }, 500);
+          }
+        }
+
+        // Apply explosion effect for Blast card
+        if (animations.explosionEffect && animations.targetElement === 'opponentHand') {
+          const opponentHand = document.querySelector('.player:first-child .cards-container');
+          if (opponentHand && opponentHand.children.length > 0) {
+            const targetCard = opponentHand.children[animations.targetCard];
+            if (targetCard) {
+              targetCard.classList.add('explosion-effect');
+              // Remove the class after animation completes
+              setTimeout(() => {
+                targetCard.classList.remove('explosion-effect');
+              }, 500);
+            }
+          }
+        }
+
+        // Apply flash effect for Force card
+        if (animations.flashEffect && animations.targetElement === 'scorePanel') {
+          const scorePanel = document.querySelector('.player-total');
+          if (scorePanel) {
+            scorePanel.classList.add('flash-effect');
+            // Remove the class after animation completes
+            setTimeout(() => {
+              scorePanel.classList.remove('flash-effect');
+            }, 500);
+          }
+        }
+
+        // Reset animation flags
+        result.newState.animations = {
+          thunderEffect: false,
+          flashEffect: false,
+          explosionEffect: false,
+          targetCard: null,
+          targetElement: null
+        };
       }
+
+      // Short delay to allow animations to play before updating state
+      setTimeout(() => {
+        setGameState(result.newState);
+        setMessage(result.message);
+
+        if (result.gameOver) {
+          setGameOver(true);
+        }
+      }, 600);
     } catch (error) {
       setMessage(error.message);
     }

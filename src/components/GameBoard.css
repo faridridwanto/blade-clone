@@ -312,6 +312,48 @@
   }
 }
 
+/* Card effect animations */
+/* Thunder effect for Bolt card */
+.thunder-effect {
+  animation: thunder 0.5s ease-in-out;
+  z-index: 10;
+  position: relative;
+}
+
+@keyframes thunder {
+  0% { filter: brightness(1); }
+  25% { filter: brightness(3); box-shadow: 0 0 20px 10px rgba(255, 255, 0, 0.7); }
+  50% { filter: brightness(1); }
+  75% { filter: brightness(2); box-shadow: 0 0 15px 5px rgba(255, 255, 0, 0.5); }
+  100% { filter: brightness(1); }
+}
+
+/* Flash effect for Mirror and Force cards */
+.flash-effect {
+  animation: flash 0.5s ease-in-out;
+  z-index: 10;
+  position: relative;
+}
+
+@keyframes flash {
+  0% { filter: brightness(1); }
+  50% { filter: brightness(3); }
+  100% { filter: brightness(1); }
+}
+
+/* Explosion effect for Blast card */
+.explosion-effect {
+  animation: explosion 0.5s ease-in-out;
+  z-index: 10;
+  position: relative;
+}
+
+@keyframes explosion {
+  0% { transform: scale(1); filter: brightness(1); }
+  50% { transform: scale(1.5); filter: brightness(2); }
+  100% { transform: scale(1); filter: brightness(1); }
+}
+
 /* Responsive adjustments */
 @media (max-width: 1200px) {
   .players-container {

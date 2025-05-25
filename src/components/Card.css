@@ -120,3 +120,40 @@
   font-size: 3rem;
   color: rgba(255, 255, 255, 0.3);
 }
+
+/* Animation keyframes */
+@keyframes thunder {
+  0% { filter: brightness(1); }
+  25% { filter: brightness(3); box-shadow: 0 0 20px 10px rgba(255, 255, 0, 0.7); }
+  50% { filter: brightness(1); }
+  75% { filter: brightness(2); box-shadow: 0 0 15px 5px rgba(255, 255, 0, 0.5); }
+  100% { filter: brightness(1); }
+}
+
+@keyframes flash {
+  0% { filter: brightness(1); }
+  50% { filter: brightness(3); }
+  100% { filter: brightness(1); }
+}
+
+@keyframes explosion {
+  0% { transform: scale(1); filter: brightness(1); }
+  50% { transform: scale(1.5); filter: brightness(2); }
+  100% { transform: scale(1); filter: brightness(1); }
+}
+
+/* Animation classes */
+.thunder-effect {
+  animation: thunder 0.5s ease-in-out;
+  z-index: 10;
+}
+
+.flash-effect {
+  animation: flash 0.5s ease-in-out;
+  z-index: 10;
+}
+
+.explosion-effect {
+  animation: explosion 0.5s ease-in-out;
+  z-index: 10;
+}

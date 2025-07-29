@@ -201,8 +201,6 @@ export const useWebSocket = () => {// State to mirror the service's state
   const [matchData, setMatchData] = useState(null);
   const [gameState, setGameState] = useState(null);
 
-  // The core change: useEffect now only subscribes to events.
-  // It does NOT control the connection lifecycle.
   useEffect(() => {
     const handleOpen = () => setIsConnected(true);
     const handleClose = () => {
@@ -226,16 +224,11 @@ export const useWebSocket = () => {// State to mirror the service's state
       onGameStateUpdate: handleGameStateUpdate,
     });
 
-    // The cleanup function no longer disconnects the service.
     // The connection is persistent and managed by the application.
     return () => {
-      // In a more complex app with multiple hooks listening, you might
-      // want to clean up the specific callbacks here, but for now, this is fine.
     };
   }, []); // Empty dependency array means this runs once per component mount
 
-  // The actions no longer include connect/disconnect.
-  // Those are now managed at the application level.
   const startMatchmaking = useCallback(() => {
     if (!webSocketService.socket || webSocketService.socket.readyState !== WebSocket.OPEN) {
       console.error('Cannot start matchmaking: WebSocket not connected.');
@@ -245,9 +238,40 @@ export const useWebSocket = () => {// State to mirror the service's state
     webSocketService.requestMatchmaking();
   }, []); // isConnected is removed as a dependency as we check the source of truth directly
 
-  const updateGameState = useCallback((newGameState) => {
+  const updateGameState = useCallback((relativeGameState) => {
     if (webSocketService.socket?.readyState === WebSocket.OPEN && matchData) {
-      webSocketService.sendGameState(newGameState);
+      // The game board works with a "relative" state (you, opponent).
+      // We must convert this to an "absolute" state (player1, player2) before sending.
+      const isPlayer1 = matchData.isFirstPlayer;
+
+      // Create the absolute state structure
+      const absoluteState = {
+        // Copy all other top-level properties (turn, deck, etc.)
+        ...relativeGameState,
+        // Create absolute player properties
+        player1: isPlayer1 ? relativeGameState.players[0] : relativeGameState.players[1],
+        player2: isPlayer1 ? relativeGameState.players[1] : relativeGameState.players[0],
+      };
+
+      // Remove the relative `players` array from the network payload
+      delete absoluteState.players;
+
+      // Convert the relative turn indicator (0 or 1) to an absolute one
+      if (typeof relativeGameState.currentPlayerIndex !== 'undefined') {
+        // isPlayer1Turn is true if:
+        // - We are Player 1 AND it's our turn (index 0)
+        // - We are Player 2 AND it's the opponent's turn (index 1)
+        absoluteState.isPlayer1Turn = (isPlayer1 && relativeGameState.currentPlayerIndex === 0) ||
+          (!isPlayer1 && relativeGameState.currentPlayerIndex === 1);
+      }
+
+      // Convert winner index (0 or 1) to an absolute winner string ('player1' or 'player2')
+      if (typeof relativeGameState.winner !== 'undefined' && relativeGameState.winner !== null) {
+        const weWon = relativeGameState.winner === 0;
+        absoluteState.winner = (isPlayer1 && weWon) || (!isPlayer1 && !weWon) ? 'player1' : 'player2';
+      }
+
+      webSocketService.sendGameState(absoluteState);
     }
   }, [matchData]);
 

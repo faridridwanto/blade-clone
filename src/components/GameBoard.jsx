@@ -6,7 +6,8 @@ import { useWebSocket } from '../services/WebSocketService';
 import './GameBoard.css';
 
 const GameBoard = ({ gameMode = 'cpu' }) => {
-  const [gameState, setGameState] = useState(null);
+  // 'game' is the local, relative state for rendering. players[0] is always "You"
+  const [game, setGame] = useState(null);
   const [message, setMessage] = useState('');
   const [gameOver, setGameOver] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
@@ -16,9 +17,8 @@ const GameBoard = ({ gameMode = 'cpu' }) => {
 
   const { 
     isConnected, 
-    isMatchmaking, 
-    matchData, 
-    gameState: receivedGameState, 
+    matchData,
+    gameState: absoluteGameState,
     startMatchmaking, 
     updateGameState 
   } = useWebSocket();
@@ -27,7 +27,9 @@ const GameBoard = ({ gameMode = 'cpu' }) => {
   const playerFieldRef = useRef(null);
   const isPvpMode = gameMode === 'player';
 
-  const startNewGame = () => {
+  const startNewGame = useCallback(() => {
+    setGameOver(false);
+    setGame(null);
     if (isPvpMode) {
       if (!isConnected) {
         setMessage('Waiting for connection to game server...');
@@ -40,75 +42,80 @@ const GameBoard = ({ gameMode = 'cpu' }) => {
     } else {
       // CPU mode - start game immediately
       const initialState = initializeGame();
-      setGameState(initialState);
+      setGame(initialState);
       setMessage('Game started! Players draw their first card.');
-      setGameOver(false);
     }
-  };
+  }, [isPvpMode, isConnected, startMatchmaking]);
 
-  // Initialize game based on mode
+  // Initialize game when the component mounts
   useEffect(() => {
     startNewGame();
-  }, [isPvpMode, isConnected]);
+  }, [startNewGame]);
 
   // Handle matchmaking result
   useEffect(() => {
     if (isPvpMode && matchData) {
       setWaitingForOpponent(false);
-
       if (matchData.isFirstPlayer) {
-        // Player 1 initiates the game
+        // Player 1 initiates the game with a relative state
         const initialState = initializeGame();
-        setGameState(initialState);
+        setGame(initialState);
         setMessage('Match found! You go first.');
-        setGameOver(false);
-
-        // Send initial game state to opponent
+        // The hook will convert this relative state to absolute before sending
         updateGameState(initialState);
       } else {
-        // Player 2 waits for game state from player 1
         setWaitingForGameState(true);
         setMessage('Match found! Waiting for opponent to start the game...');
       }
     }
-  }, [isPvpMode, matchData]);
+  }, [isPvpMode, matchData, updateGameState]);
 
   // Handle received game state from opponent
   useEffect(() => {
-    if (isPvpMode && receivedGameState) {
+    if (isPvpMode && absoluteGameState && matchData) {
       setWaitingForGameState(false);
+      const isPlayer1 = matchData.isFirstPlayer;
 
-      // If this is the first game state received (initial state)
-      if (!gameState) {
-        setGameState(receivedGameState);
-        setMessage('Game started! Your opponent goes first.');
-        setGameOver(false);
-      } 
-      // If this is an update during the game
-      else {
-        setGameState(receivedGameState);
+      // Translate Absolute Network State to Relative Local State
+      const relativeState = {
+        // Copy top-level properties (deck, turn, etc.)
+        ...absoluteGameState,
+        players: [
+          // You are always players[0]
+          isPlayer1 ? absoluteGameState.player1 : absoluteGameState.player2,
+          // Opponent is always players[1]
+          isPlayer1 ? absoluteGameState.player2 : absoluteGameState.player1,
+        ],
+        // Determine whose turn it is from your perspective (0 for you, 1 for opponent)
+        currentPlayerIndex: (isPlayer1 === absoluteGameState.isPlayer1Turn) ? 0 : 1,
+        winner: null,
+      };
 
-        // Determine if it's our turn now
-        const isOurTurn = receivedGameState.currentPlayerIndex === 0;
-        setMessage(isOurTurn 
-          ? 'Your opponent played a card. Your turn!' 
-          : 'Waiting for opponent to play...');
+      // Remove the absolute properties that have been translated
+      delete relativeState.player1;
+      delete relativeState.player2;
+      delete relativeState.isPlayer1Turn;
 
-        // Check if game is over
-        if (receivedGameState.gameOver) {
-          setGameOver(true);
-          const weWon = receivedGameState.winner === 0;
-          setMessage(weWon ? 'You won the match!' : 'Your opponent won the match!');
-        }
+      // Update UI message and game over state
+      if (absoluteGameState.gameOver && absoluteGameState.winner) {
+        const weAreWinner = (isPlayer1 && absoluteGameState.winner === 'player1') || (!isPlayer1 && absoluteGameState.winner === 'player2');
+        relativeState.winner = weAreWinner ? 0 : 1;
+        setGameOver(true);
+        setMessage(weAreWinner ? 'You won the match!' : 'Your opponent won the match!');
+      } else {
+        const isOurTurn = relativeState.currentPlayerIndex === 0;
+        setMessage(isOurTurn ? 'Your opponent played a card. Your turn!' : 'Waiting for opponent to play...');
       }
+
+      setGame(relativeState);
     }
-  }, [isPvpMode, receivedGameState, gameState]);
+  }, [isPvpMode, absoluteGameState, matchData]);
 
   const handlePlayCard = useCallback((cardIndex) => {
-    if (!gameState || gameOver || (isPvpMode && waitingForOpponent) || (isPvpMode && waitingForGameState)) return;
+    if (!game || gameOver || (isPvpMode && waitingForOpponent) || (isPvpMode && waitingForGameState)) return;
 
     try {
-      const result = playCard(gameState, cardIndex);
+      const result = playCard(game, cardIndex);
 
       // Handle animations before updating state
       if (result.newState.animations) {
@@ -180,61 +187,53 @@ const GameBoard = ({ gameMode = 'cpu' }) => {
 
       // Short delay to allow animations to play before updating state
       setTimeout(() => {
-        setGameState(result.newState);
+        setGame(result.newState);
         setMessage(result.message);
 
         if (result.gameOver) {
           setGameOver(true);
-
-          // Add winner information to the game state
-          if (isPvpMode) {
-            // In PvP mode, player index 0 is always the local player
-            // and player index 1 is always the opponent
-            result.newState.winner = result.newState.currentPlayerIndex;
-            result.newState.gameOver = true;
-
-            // Send final game state to opponent
-            updateGameState(result.newState);
-          }
         }
 
-        // In PvP mode, send updated game state to opponent
-        else if (isPvpMode) {
+        // For PvP, send the new relative state. The hook handles the conversion.
+        if (isPvpMode) {
           updateGameState(result.newState);
         }
       }, 600);
     } catch (error) {
       setMessage(error.message);
     }
-  }, [gameState, gameOver, isPvpMode, waitingForOpponent, waitingForGameState, updateGameState]);
+  }, [game, gameOver, isPvpMode, waitingForOpponent, waitingForGameState, updateGameState]);
 
   // Check player viability when current player changes (new turn)
   useEffect(() => {
-    if (gameState && !gameOver) {
+    if (game && !gameOver) {
       // Only check viability at the start of a turn
-      const viabilityCheck = checkPlayerViability(gameState);
+      const viabilityCheck = checkPlayerViability(game);
       if (!viabilityCheck.viable) {
-        setGameState(viabilityCheck.newState);
+        setGame(viabilityCheck.newState);
         setMessage(viabilityCheck.message);
         setGameOver(true);
+        if (isPvpMode) {
+          updateGameState(viabilityCheck.newState);
+        }
       }
     }
-  }, [gameState?.currentPlayerIndex, gameOver]);
+  }, [game?.currentPlayerIndex, gameOver, isPvpMode, updateGameState]);
 
   // Automatic opponent play (CPU mode only)
   useEffect(() => {
-    if (!isPvpMode && gameState && !gameOver && gameState.currentPlayerIndex === 1) {
+    if (!isPvpMode && game && !gameOver && game.currentPlayerIndex === 1) {
       // Add a delay to make the opponent's play feel more natural
       const timeoutId = setTimeout(() => {
         // Get the card index for the opponent to play
-        const cardIndex = getOpponentCardToPlay(gameState);
+        const cardIndex = getOpponentCardToPlay(game);
 
         // If a valid card index is returned, play it
         if (cardIndex >= 0) {
           handlePlayCard(cardIndex);
         } else {
           setMessage('Opponent has no valid moves left! You won the match!');
-          setGameState((prevState) => ({
+          setGame((prevState) => ({
             ...prevState,
             currentPlayerIndex: 0,
           }));
@@ -245,11 +244,11 @@ const GameBoard = ({ gameMode = 'cpu' }) => {
       // Clean up the timeout if the component unmounts or the dependencies change
       return () => clearTimeout(timeoutId);
     }
-  }, [isPvpMode, gameState, gameState?.currentPlayerIndex, gameOver, handlePlayCard]);
+  }, [isPvpMode, game, game?.currentPlayerIndex, gameOver, handlePlayCard]);
 
   // Auto-scroll to bottom when cards are added to the field
   useEffect(() => {
-    if (gameState) {
+    if (game) {
       // Scroll opponent field to bottom
       if (opponentFieldRef.current) {
         opponentFieldRef.current.scrollTop = opponentFieldRef.current.scrollHeight;
@@ -260,10 +259,15 @@ const GameBoard = ({ gameMode = 'cpu' }) => {
         playerFieldRef.current.scrollTop = playerFieldRef.current.scrollHeight;
       }
     }
-  }, [gameState?.players[0].field, gameState?.players[1].field]);
+  }, [game?.players[0].field, game?.players[1].field]);
 
   // Show loading states
-  if (!gameState) {
+  if (isPvpMode && (!game || waitingForOpponent || waitingForGameState)) {
+    if (waitingForOpponent) return <div className="loading"><div className="loading-spinner"></div><p>Finding an opponent...</p></div>;
+    if (waitingForGameState) return <div className="loading"><div className="loading-spinner"></div><p>Opponent found! Waiting for game to start...</p></div>;
+    return <div className="loading">Connecting...</div>;
+  }
+  if (!game) {
     return <div className="loading">Loading game...</div>;
   }
 
@@ -273,16 +277,6 @@ const GameBoard = ({ gameMode = 'cpu' }) => {
         <div className="loading-spinner"></div>
         <p>Finding an opponent...</p>
         <p>Please wait while we match you with another player.</p>
-      </div>
-    );
-  }
-
-  if (isPvpMode && waitingForGameState) {
-    return (
-      <div className="loading">
-        <div className="loading-spinner"></div>
-        <p>Opponent found!</p>
-        <p>Waiting for the game to start...</p>
       </div>
     );
   }
@@ -341,13 +335,13 @@ const GameBoard = ({ gameMode = 'cpu' }) => {
         </div>
       </div>
 
-      {showCardLog && gameState && gameState.cardPlayLog && (
+      {showCardLog && game && game.cardPlayLog && (
         <div className="card-log-container">
           <h3>Card Play Log</h3>
           <div className="card-log">
-            {gameState.cardPlayLog.length > 0 ? (
+            {game.cardPlayLog.length > 0 ? (
               <ul>
-                {gameState.cardPlayLog.map((entry, index) => (
+                {game.cardPlayLog.map((entry, index) => (
                   <li key={index}>{entry}</li>
                 ))}
               </ul>
@@ -361,21 +355,21 @@ const GameBoard = ({ gameMode = 'cpu' }) => {
       <div className="players-container">
         <Player
           name="Opponent"
-          hand={gameState.players[1].hand}
-          isCurrentPlayer={gameState.currentPlayerIndex === 1}
-          canPlay={gameState.currentPlayerIndex === 1 && !gameOver}
+          hand={game.players[1].hand}
+          isCurrentPlayer={game.currentPlayerIndex === 1}
+          canPlay={game.currentPlayerIndex === 1 && !gameOver}
           onPlayCard={handlePlayCard}
-          totalValue={gameState.players[1].totalValue}
+          totalValue={game.players[1].totalValue}
           gameOver={gameOver}
         />
 
         <div className="game-field">
           <h3>Game Field</h3>
           <div className="field-info">
-            <div className="turn-counter">Turn: {gameState.turn}</div>
+            <div className="turn-counter">Turn: {game.turn}</div>
             <div className="cards-left">
-              <div>Your Cards: {gameState.players[0].deck.length} / 8</div>
-              <div>Opponent Cards: {gameState.players[1].deck.length} / 8</div>
+              <div>Your Cards: {game.players[0].deck.length} / 8</div>
+              <div>Opponent Cards: {game.players[1].deck.length} / 8</div>
             </div>
           </div>
 
@@ -383,8 +377,8 @@ const GameBoard = ({ gameMode = 'cpu' }) => {
             <div className="player-field">
               <h3>Opponent's Field</h3>
               <div className="cards-container" ref={opponentFieldRef}>
-                {gameState.players[1].field.length > 0 ? (
-                  gameState.players[1].field.map((card, index) => (
+                {game.players[1].field.length > 0 ? (
+                  game.players[1].field.map((card, index) => (
                     <Card
                       key={`opponent-field-${index}`}
                       type={card.type}
@@ -401,8 +395,8 @@ const GameBoard = ({ gameMode = 'cpu' }) => {
             <div className="player-field">
               <h3>Your Field</h3>
               <div className="cards-container" ref={playerFieldRef}>
-                {gameState.players[0].field.length > 0 ? (
-                  gameState.players[0].field.map((card, index) => (
+                {game.players[0].field.length > 0 ? (
+                  game.players[0].field.map((card, index) => (
                     <Card
                       key={`your-field-${index}`}
                       type={card.type}
@@ -420,11 +414,11 @@ const GameBoard = ({ gameMode = 'cpu' }) => {
 
         <Player
           name="You"
-          hand={gameState.players[0].hand}
-          isCurrentPlayer={gameState.currentPlayerIndex === 0}
-          canPlay={gameState.currentPlayerIndex === 0 && !gameOver}
+          hand={game.players[0].hand}
+          isCurrentPlayer={game.currentPlayerIndex === 0}
+          canPlay={game.currentPlayerIndex === 0 && !gameOver}
           onPlayCard={handlePlayCard}
-          totalValue={gameState.players[0].totalValue}
+          totalValue={game.players[0].totalValue}
           gameOver={gameOver}
         />
       </div>

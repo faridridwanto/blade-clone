@@ -2,31 +2,110 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Player from './Player';
 import Card from './Card';
 import { initializeGame, playCard, applyEffectCard, checkPlayerViability, getOpponentCardToPlay } from '../utils/gameLogic';
+import { useWebSocket } from '../services/WebSocketService';
 import './GameBoard.css';
 
-const GameBoard = () => {
+const GameBoard = ({ gameMode = 'cpu' }) => {
   const [gameState, setGameState] = useState(null);
   const [message, setMessage] = useState('');
   const [gameOver, setGameOver] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
   const [showCardLog, setShowCardLog] = useState(false);
+  const [waitingForOpponent, setWaitingForOpponent] = useState(false);
+  const [waitingForGameState, setWaitingForGameState] = useState(false);
+
+  const { 
+    isConnected, 
+    isMatchmaking, 
+    matchData, 
+    gameState: receivedGameState, 
+    startMatchmaking, 
+    updateGameState 
+  } = useWebSocket();
 
   const opponentFieldRef = useRef(null);
   const playerFieldRef = useRef(null);
+  const isPvpMode = gameMode === 'player';
 
   const startNewGame = () => {
-    const initialState = initializeGame();
-    setGameState(initialState);
-    setMessage('Game started! Players draw their first card.');
-    setGameOver(false);
+    if (isPvpMode) {
+      if (!isConnected) {
+        setMessage('Waiting for connection to game server...');
+        return;
+      }
+
+      setWaitingForOpponent(true);
+      setMessage('Finding an opponent...');
+      startMatchmaking();
+    } else {
+      // CPU mode - start game immediately
+      const initialState = initializeGame();
+      setGameState(initialState);
+      setMessage('Game started! Players draw their first card.');
+      setGameOver(false);
+    }
   };
 
+  // Initialize game based on mode
   useEffect(() => {
     startNewGame();
-  }, []);
+  }, [isPvpMode, isConnected]);
+
+  // Handle matchmaking result
+  useEffect(() => {
+    if (isPvpMode && matchData) {
+      setWaitingForOpponent(false);
+
+      if (matchData.isFirstPlayer) {
+        // Player 1 initiates the game
+        const initialState = initializeGame();
+        setGameState(initialState);
+        setMessage('Match found! You go first.');
+        setGameOver(false);
+
+        // Send initial game state to opponent
+        updateGameState(initialState);
+      } else {
+        // Player 2 waits for game state from player 1
+        setWaitingForGameState(true);
+        setMessage('Match found! Waiting for opponent to start the game...');
+      }
+    }
+  }, [isPvpMode, matchData]);
+
+  // Handle received game state from opponent
+  useEffect(() => {
+    if (isPvpMode && receivedGameState) {
+      setWaitingForGameState(false);
+
+      // If this is the first game state received (initial state)
+      if (!gameState) {
+        setGameState(receivedGameState);
+        setMessage('Game started! Your opponent goes first.');
+        setGameOver(false);
+      } 
+      // If this is an update during the game
+      else {
+        setGameState(receivedGameState);
+
+        // Determine if it's our turn now
+        const isOurTurn = receivedGameState.currentPlayerIndex === 0;
+        setMessage(isOurTurn 
+          ? 'Your opponent played a card. Your turn!' 
+          : 'Waiting for opponent to play...');
+
+        // Check if game is over
+        if (receivedGameState.gameOver) {
+          setGameOver(true);
+          const weWon = receivedGameState.winner === 0;
+          setMessage(weWon ? 'You won the match!' : 'Your opponent won the match!');
+        }
+      }
+    }
+  }, [isPvpMode, receivedGameState, gameState]);
 
   const handlePlayCard = useCallback((cardIndex) => {
-    if (!gameState || gameOver) return;
+    if (!gameState || gameOver || (isPvpMode && waitingForOpponent) || (isPvpMode && waitingForGameState)) return;
 
     try {
       const result = playCard(gameState, cardIndex);
@@ -106,12 +185,28 @@ const GameBoard = () => {
 
         if (result.gameOver) {
           setGameOver(true);
+
+          // Add winner information to the game state
+          if (isPvpMode) {
+            // In PvP mode, player index 0 is always the local player
+            // and player index 1 is always the opponent
+            result.newState.winner = result.newState.currentPlayerIndex;
+            result.newState.gameOver = true;
+
+            // Send final game state to opponent
+            updateGameState(result.newState);
+          }
+        }
+
+        // In PvP mode, send updated game state to opponent
+        else if (isPvpMode) {
+          updateGameState(result.newState);
         }
       }, 600);
     } catch (error) {
       setMessage(error.message);
     }
-  }, [gameState, gameOver]);
+  }, [gameState, gameOver, isPvpMode, waitingForOpponent, waitingForGameState, updateGameState]);
 
   // Check player viability when current player changes (new turn)
   useEffect(() => {
@@ -126,9 +221,9 @@ const GameBoard = () => {
     }
   }, [gameState?.currentPlayerIndex, gameOver]);
 
-  // Automatic opponent play
+  // Automatic opponent play (CPU mode only)
   useEffect(() => {
-    if (gameState && !gameOver && gameState.currentPlayerIndex === 1) {
+    if (!isPvpMode && gameState && !gameOver && gameState.currentPlayerIndex === 1) {
       // Add a delay to make the opponent's play feel more natural
       const timeoutId = setTimeout(() => {
         // Get the card index for the opponent to play
@@ -150,7 +245,7 @@ const GameBoard = () => {
       // Clean up the timeout if the component unmounts or the dependencies change
       return () => clearTimeout(timeoutId);
     }
-  }, [gameState, gameState?.currentPlayerIndex, gameOver, handlePlayCard]);
+  }, [isPvpMode, gameState, gameState?.currentPlayerIndex, gameOver, handlePlayCard]);
 
   // Auto-scroll to bottom when cards are added to the field
   useEffect(() => {
@@ -167,8 +262,29 @@ const GameBoard = () => {
     }
   }, [gameState?.players[0].field, gameState?.players[1].field]);
 
+  // Show loading states
   if (!gameState) {
     return <div className="loading">Loading game...</div>;
+  }
+
+  if (isPvpMode && waitingForOpponent) {
+    return (
+      <div className="loading">
+        <div className="loading-spinner"></div>
+        <p>Finding an opponent...</p>
+        <p>Please wait while we match you with another player.</p>
+      </div>
+    );
+  }
+
+  if (isPvpMode && waitingForGameState) {
+    return (
+      <div className="loading">
+        <div className="loading-spinner"></div>
+        <p>Opponent found!</p>
+        <p>Waiting for the game to start...</p>
+      </div>
+    );
   }
 
   return (

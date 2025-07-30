@@ -6,10 +6,8 @@ import { useWebSocket } from '../services/WebSocketService';
 import './GameBoard.css';
 
 const GameBoard = ({ gameMode = 'cpu' }) => {
-  // 'game' is the local, relative state for rendering. players[0] is always "You"
   const [game, setGame] = useState(null);
   const [message, setMessage] = useState('');
-  const [gameOver, setGameOver] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
   const [showCardLog, setShowCardLog] = useState(false);
   const [waitingForOpponent, setWaitingForOpponent] = useState(false);
@@ -26,9 +24,9 @@ const GameBoard = ({ gameMode = 'cpu' }) => {
   const opponentFieldRef = useRef(null);
   const playerFieldRef = useRef(null);
   const isPvpMode = gameMode === 'player';
+  const gameOver = game?.gameOver || false;
 
   const startNewGame = useCallback(() => {
-    setGameOver(false);
     setGame(null);
     if (isPvpMode) {
       if (!isConnected) {
@@ -60,12 +58,21 @@ const GameBoard = ({ gameMode = 'cpu' }) => {
         // Player 1 initiates the game with a relative state
         const initialState = initializeGame();
         setGame(initialState);
-        setMessage('Match found! You go first.');
+        if (matchData.isPlayer1Turn) {
+          setMessage('Match found! You go first.');
+        } else {
+          setWaitingForGameState(true);
+          setMessage('Match found! Waiting for opponent to play...');
+        }
         // The hook will convert this relative state to absolute before sending
         updateGameState(initialState);
       } else {
-        setWaitingForGameState(true);
-        setMessage('Match found! Waiting for opponent to start the game...');
+        if (!matchData.isPlayer1Turn) {
+          setMessage('Match found! You go first.');
+        } else {
+          setWaitingForGameState(true);
+          setMessage('Match found! Waiting for opponent to play...');
+        }
       }
     }
   }, [isPvpMode, matchData, updateGameState]);
@@ -96,11 +103,9 @@ const GameBoard = ({ gameMode = 'cpu' }) => {
       delete relativeState.player2;
       delete relativeState.isPlayer1Turn;
 
-      // Update UI message and game over state
-      if (absoluteGameState.gameOver && absoluteGameState.winner) {
+      if (relativeState.gameOver && absoluteGameState.winner) {
         const weAreWinner = (isPlayer1 && absoluteGameState.winner === 'player1') || (!isPlayer1 && absoluteGameState.winner === 'player2');
         relativeState.winner = weAreWinner ? 0 : 1;
-        setGameOver(true);
         setMessage(weAreWinner ? 'You won the match!' : 'Your opponent won the match!');
       } else {
         const isOurTurn = relativeState.currentPlayerIndex === 0;
@@ -112,8 +117,7 @@ const GameBoard = ({ gameMode = 'cpu' }) => {
   }, [isPvpMode, absoluteGameState, matchData]);
 
   const handlePlayCard = useCallback((cardIndex) => {
-    if (!game || gameOver || (isPvpMode && waitingForOpponent) || (isPvpMode && waitingForGameState)) return;
-
+    if (!game || gameOver || (isPvpMode && (waitingForOpponent || waitingForGameState))) return;
     try {
       const result = playCard(game, cardIndex);
 
@@ -190,10 +194,6 @@ const GameBoard = ({ gameMode = 'cpu' }) => {
         setGame(result.newState);
         setMessage(result.message);
 
-        if (result.gameOver) {
-          setGameOver(true);
-        }
-
         // For PvP, send the new relative state. The hook handles the conversion.
         if (isPvpMode) {
           updateGameState(result.newState);
@@ -212,13 +212,12 @@ const GameBoard = ({ gameMode = 'cpu' }) => {
       if (!viabilityCheck.viable) {
         setGame(viabilityCheck.newState);
         setMessage(viabilityCheck.message);
-        setGameOver(true);
         if (isPvpMode) {
           updateGameState(viabilityCheck.newState);
         }
       }
     }
-  }, [game?.currentPlayerIndex, gameOver, isPvpMode, updateGameState]);
+  }, [game, isPvpMode, updateGameState]);
 
   // Automatic opponent play (CPU mode only)
   useEffect(() => {
@@ -236,8 +235,8 @@ const GameBoard = ({ gameMode = 'cpu' }) => {
           setGame((prevState) => ({
             ...prevState,
             currentPlayerIndex: 0,
+            gameOver: true,
           }));
-          setGameOver(true);
         }
       }, 1000); // 1 second delay
 
